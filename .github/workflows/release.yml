@@ -1,5 +1,6 @@
 # Build every DAWters and Son package on Linux and publish them as a GitHub release.
-# Runs when a version tag (v2.3.3, v2.4.0, ...) is pushed, or by hand from the Actions tab.
+# Runs when a version tag (v2.3.3, v2.4.0, ...) is pushed, or by hand from the Actions tab
+# (Run workflow, then type the tag): a hand-started run builds main and creates the tag there.
 #
 # Android release signing uses two repository secrets (Settings > Secrets and variables > Actions):
 #   DAWTERS_KEYSTORE_B64  the release keystore, base64-encoded
@@ -25,8 +26,6 @@ jobs:
       TAG: ${{ github.event.inputs.tag || github.ref_name }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.inputs.tag || github.ref }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -87,6 +86,7 @@ jobs:
         with:
           tag_name: ${{ env.TAG }}
           name: DAWters and Son ${{ env.TAG }}
+          target_commitish: ${{ github.sha }}
           body_path: .github/release-notes.md
           files: |
             dist/DAWters-and-Son-*
