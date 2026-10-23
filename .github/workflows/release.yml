@@ -1,0 +1,93 @@
+# Build every DAWters and Son package on Linux and publish them as a GitHub release.
+# Runs when a version tag (v2.3.3, v2.4.0, ...) is pushed, or by hand from the Actions tab.
+#
+# Android release signing uses two repository secrets (Settings > Secrets and variables > Actions):
+#   DAWTERS_KEYSTORE_B64  the release keystore, base64-encoded
+#   DAWTERS_KS_PASS       its password
+# Without them the APK is left out of the release, so a throwaway key never ships to users.
+name: Release
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Version tag to build and publish, e.g. v2.3.3'
+        required: true
+permissions:
+  contents: write
+concurrency:
+  group: release-${{ github.event.inputs.tag || github.ref_name }}
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    env:
+      TAG: ${{ github.event.inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Packaging tools (NSIS, HFS+, Android SDK)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nsis hfsprogs cmake zlib1g-dev libbz2-dev libssl-dev zip \
+            aapt apksigner zipalign dalvik-exchange libandroid-23-java openjdk-21-jdk-headless
+      - name: Disk image tools (libdmg-hfsplus)
+        run: |
+          mkdir -p "$RUNNER_TEMP/t" && cd "$RUNNER_TEMP/t"
+          git clone -q https://github.com/planetbeing/libdmg-hfsplus.git hfs && git -C hfs checkout -q 7ac55ec
+          cmake -S hfs -B hfs/build -DCMAKE_BUILD_TYPE=Release >/dev/null && make -s -C hfs/build hfsplus
+          git clone -q https://github.com/fanquake/libdmg-hfsplus.git dmg && git -C dmg checkout -q 1cc791e
+          cmake -S dmg -B dmg/build -DCMAKE_BUILD_TYPE=Release >/dev/null && make -s -C dmg/build dmg
+          echo "HFSPLUS=$RUNNER_TEMP/t/hfs/build/hfs/hfsplus" >> "$GITHUB_ENV"
+          echo "DMGTOOL=$RUNNER_TEMP/t/dmg/build/dmg/dmg" >> "$GITHUB_ENV"
+      - name: Mac signing tool (rcodesign)
+        run: |
+          cargo install apple-codesign --version 0.29.0 --locked --quiet
+          echo "RCODESIGN=$HOME/.cargo/bin/rcodesign" >> "$GITHUB_ENV"
+      - name: ffmpeg binaries for the desktop apps
+        run: |
+          mkdir -p "$RUNNER_TEMP/ff" && cd "$RUNNER_TEMP/ff"
+          for p in darwin-arm64@4.1.5 win32-x64@4.1.0 linux-x64@4.1.0; do npm pack -s "@ffmpeg-installer/$p" >/dev/null; done
+          for f in *.tgz; do mkdir "${f%.tgz}" && tar xzf "$f" -C "${f%.tgz}"; done
+          cd "$GITHUB_WORKSPACE"
+          mkdir -p mac/ffmpeg win/ffmpeg linux/ffmpeg
+          cp "$RUNNER_TEMP"/ff/ffmpeg-installer-darwin-arm64-*/package/ffmpeg mac/ffmpeg/ffmpeg
+          cp "$RUNNER_TEMP"/ff/ffmpeg-installer-win32-x64-*/package/ffmpeg.exe win/ffmpeg/ffmpeg.exe
+          cp "$RUNNER_TEMP"/ff/ffmpeg-installer-linux-x64-*/package/ffmpeg linux/ffmpeg/ffmpeg
+          chmod +x mac/ffmpeg/ffmpeg linux/ffmpeg/ffmpeg
+      - name: Android release key
+        env:
+          KS_B64: ${{ secrets.DAWTERS_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$KS_B64" ]; then
+            echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+            echo "DAWTERS_KEYSTORE=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+          else
+            echo "SKIP_ANDROID=1" >> "$GITHUB_ENV"
+            echo "::warning::No DAWTERS_KEYSTORE_B64 secret: the Android APK is left out of this release."
+          fi
+      - name: Build every package
+        env:
+          DAWTERS_KS_PASS: ${{ secrets.DAWTERS_KS_PASS }}
+        run: |
+          V=$(sed -n 's/^V=//p' build-all.sh)
+          [ "v$V" = "$TAG" ] || { echo "::error::build-all.sh says $V but the tag is $TAG"; exit 1; }
+          sh build-all.sh
+      - name: Source zip and checksums
+        run: |
+          V=${TAG#v}
+          git archive --format=zip -9 -o "dist/DAWters-and-Son-$V-source.zip" --prefix="DAWters-and-Son-$V/" HEAD
+          cd dist && rm -f dawters.html && sha256sum DAWters-and-Son-* > SHA256SUMS.txt && cat SHA256SUMS.txt
+      - name: Publish the release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          name: DAWters and Son ${{ env.TAG }}
+          body_path: .github/release-notes.md
+          files: |
+            dist/DAWters-and-Son-*
+            dist/SHA256SUMS.txt
