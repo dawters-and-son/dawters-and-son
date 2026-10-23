@@ -1,0 +1,31 @@
+DAWters and Son 2.3.3 for Windows (64-bit)
+
+INSTALL
+1. Run DAWters-and-Son-2.3.3-Setup-x64.exe. It installs for your Windows account only,
+   so no administrator password is needed.
+2. Windows SmartScreen may say "Windows protected your PC", because the installer
+   isn't signed with a paid code-signing certificate. Click "More info", then "Run anyway".
+3. Pick the shortcuts you want (desktop icon, D&S Tuner) and finish.
+
+Prefer no installer? Unzip DAWters-and-Son-2.3.3-win-x64-portable.zip anywhere and run
+"DAWters and Son.exe". (The portable copy doesn't register .dawters files.)
+
+WHAT YOU GET
+- DAWters and Son in the Start menu, and D&S Tuner, which opens straight into the tuner.
+- Double-click a .dawters song to open it.
+- ffmpeg is built in for MP3, AAC, Ogg, Opus and FLAC exports.
+- Your songs, autosave and settings live in %APPDATA%\DAWters and Son.
+- Uninstall from Settings > Apps.
+
+AUDIO
+For low latency use your audio interface's own driver, and pick it in Settings (Ctrl+,).
+Windows audio goes through the system mixer (WASAPI shared mode), so the buffer setting
+in Settings matters more than on a Mac.
+
+LICENSE
+DAWters and Son is free software: no price, no tiers, no sign-up, no tracking.
+Copyright (C) 2026 Josh Wilk. You may use, share and change it under the
+GNU General Public License, version 3 or (at your option) any later version.
+It comes with ABSOLUTELY NO WARRANTY. The full license is in LICENSE.txt
+(also under Help > About > License in the app). Source code:
+https://github.com/dawters-and-son/dawters-and-son

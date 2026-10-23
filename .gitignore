@@ -1,0 +1,28 @@
+# build output
+dist/
+build/LICENSE.txt
+mac/out/
+win/out/
+linux/out/
+linux/deb-root/
+android/build/
+android/assets/
+web/index.html
+web/ff/
+web/LICENSE.txt
+mac/app/dawters.html
+mac/app/THIRD-PARTY.txt
+mac/app/LICENSE
+node_modules/
+# third-party ffmpeg binaries (see README for where to get them)
+mac/ffmpeg/
+win/ffmpeg/
+linux/ffmpeg/
+# signing keys and secrets: never commit these
+*.keystore
+*.jks
+*.p12
+*.pfx
+*.cer
+*.p8
+_site/

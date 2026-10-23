@@ -1,0 +1,10 @@
+{
+  "name": "dawters-and-suns",
+  "productName": "DAWters and Son",
+  "version": "2.3.3",
+  "description": "DAWters and Son — multitrack recording studio",
+  "main": "main.js",
+  "author": "Josh Wilk",
+  "license": "GPL-3.0-or-later",
+  "homepage": "https://github.com/dawters-and-son/dawters-and-son"
+}

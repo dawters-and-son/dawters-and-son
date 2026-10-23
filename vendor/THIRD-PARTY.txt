@@ -1,0 +1,20 @@
+DAWters and Son — third-party components
+
+DAWters and Son itself is Copyright (C) 2026 Josh Wilk and is licensed under the GNU General Public
+License, version 3 or later (see LICENSE). The components below keep their own licenses.
+
+FFmpeg (https://ffmpeg.org) — used to encode FLAC, MP3, AAC, Ogg Vorbis and Opus exports.
+  * Mac app: static ffmpeg binary from the npm package @ffmpeg-installer/darwin-arm64 4.1.0,
+    built with libmp3lame, libopus, libvorbis and other libraries; licensed GPL v2 or later.
+  * Web and Android: ffmpeg.wasm core (@ffmpeg/core 0.12.10, https://github.com/ffmpegwasm/ffmpeg.wasm),
+    MIT wrapper around FFmpeg built with LAME, libvorbis, Opus and others; GPL v2 or later.
+  Source code for FFmpeg and these builds is available from https://ffmpeg.org/download.html,
+  https://github.com/kribblo/node-ffmpeg-installer and https://github.com/ffmpegwasm/ffmpeg.wasm.
+  FFmpeg runs as a separate program (Mac) or in a separate worker (web/Android) and receives audio as WAV.
+
+Fonts (SIL Open Font License 1.1): Yesteryear (Astigmatic), Oswald (Vernon Adams and contributors),
+Courier Prime (Quote-Unquote Apps). Distributed via Fontsource.
+
+Electron (https://www.electronjs.org) — the desktop shell for Mac, Windows and Linux. MIT License,
+Copyright (c) Electron contributors and GitHub Inc. It includes Chromium and other components; their
+licenses ship with the app as LICENSE and LICENSES.chromium.html.

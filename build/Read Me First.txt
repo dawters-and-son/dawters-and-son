@@ -1,0 +1,30 @@
+DAWters and Son 2.3.3 for Mac (Apple Silicon)
+
+INSTALL
+1. Drag "DAWters and Son" onto the Applications folder.
+2. Open it once from Applications. macOS will say it can't check the app
+   for malicious software, because it isn't signed with an Apple developer ID.
+3. Open System Settings > Privacy & Security, scroll down, and click
+   "Open Anyway" next to DAWters and Son. Confirm with your password.
+   (Alternative, in Terminal:  xattr -dr com.apple.quarantine "/Applications/DAWters and Son.app")
+4. The first time you record, allow microphone access.
+
+GETTING STARTED
+- Arm a track (red dot), press R to record, Space to stop.
+- Tab steps through Deck, Tracks, Matrix, Pattern and Console.
+- The Master tab (Shift+M) has 16 mastering recipes, A/B compare and Match target.
+- View > Tuner (Shift+Cmd+T, or U) is a chromatic and instrument tuner.
+- Edit > Noise removal takes a noise sample and cleans it out of clips.
+- File > Export writes WAV, FLAC, MP3, AAC, Ogg or Opus; ffmpeg is built in.
+- File > Save Song writes a .dawters file with all your audio inside.
+- Your current song also autosaves inside the app.
+- Settings (Cmd+,) picks your audio interface, calibrates recording latency,
+  and switches between the Daytime and Late-show looks.
+
+LICENSE
+DAWters and Son is free software: no price, no tiers, no sign-up, no tracking.
+Copyright (C) 2026 Josh Wilk. You may use, share and change it under the
+GNU General Public License, version 3 or (at your option) any later version.
+It comes with ABSOLUTELY NO WARRANTY. The full license is in LICENSE.txt
+(also under Help > About > License in the app). Source code:
+https://github.com/dawters-and-son/dawters-and-son

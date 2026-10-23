@@ -1,0 +1,368 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="img/icon.svg" type="image/svg+xml">
+<title>DAWters and Son</title>
+<meta name="description" content="DAWters and Son is a free, open-source multitrack recording studio for Mac, Windows, Ubuntu, Android and the browser. No sign-up, no tracking, no tiers.">
+<link rel="preload" href="fonts/yesteryear-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+<style>
+/* fonts are served from this site: no third-party requests */
+@font-face{font-family:'Yesteryear';font-weight:400;font-style:normal;font-display:swap;src:url(fonts/yesteryear-latin-400-normal.woff2) format('woff2')}
+@font-face{font-family:'Oswald';font-weight:400;font-style:normal;font-display:swap;src:url(fonts/oswald-latin-400-normal.woff2) format('woff2')}
+@font-face{font-family:'Oswald';font-weight:500;font-style:normal;font-display:swap;src:url(fonts/oswald-latin-500-normal.woff2) format('woff2')}
+@font-face{font-family:'Oswald';font-weight:600;font-style:normal;font-display:swap;src:url(fonts/oswald-latin-600-normal.woff2) format('woff2')}
+@font-face{font-family:'Courier Prime';font-weight:400;font-style:normal;font-display:swap;src:url(fonts/courier-prime-latin-400-normal.woff2) format('woff2')}
+@font-face{font-family:'Courier Prime';font-weight:400;font-style:italic;font-display:swap;src:url(fonts/courier-prime-latin-400-italic.woff2) format('woff2')}
+@font-face{font-family:'Courier Prime';font-weight:700;font-style:normal;font-display:swap;src:url(fonts/courier-prime-latin-700-normal.woff2) format('woff2')}
+</style>
+<style>
+/* Layout: a 1950s broadcast — black station band on top, newsprint paper below, title cards for sections, one sponsor-red accent. */
+:root {
+  --ink: #1A1611; --paper: #EFE8DA; --card: #FBF8F1; --card-2: #E6DECC; --muted: #6A6253; --rule: rgba(26,22,17,.18);
+  --red: #C8231B; --red-ink: #FBF8F1; --band: #1A1611; --band-ink: #F4EEE1; --dial: #F1E6C4;
+  --script: 'Yesteryear', 'Brush Script MT', cursive;
+  --head: 'Oswald', 'Arial Narrow', 'Helvetica Neue', sans-serif;
+  --mono: 'Courier Prime', 'Courier New', ui-monospace, monospace;
+  --wrap: 1180px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --ink: #EDE5D3; --paper: #12100D; --card: #1B1814; --card-2: #26211B; --muted: #A2977F; --rule: rgba(237,229,211,.18);
+  --red: #E2452F; --red-ink: #FBF8F1; --band: #090806; --band-ink: #F4EEE1; --dial: #E3D3A2; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --ink: #EDE5D3; --paper: #12100D; --card: #1B1814; --card-2: #26211B; --muted: #A2977F; --rule: rgba(237,229,211,.18);
+  --red: #E2452F; --red-ink: #FBF8F1; --band: #090806; --band-ink: #F4EEE1; --dial: #E3D3A2; color-scheme: dark }
+* { box-sizing: border-box; }
+body { background: var(--paper); color: var(--ink); font: 400 17px/1.55 var(--mono); }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--band); }
+a { color: inherit; }
+img { max-width: 100%; display: block; }
+.wrap { max-width: var(--wrap); margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+h1, h2, h3 { text-wrap: balance; margin: 0; }
+p { margin: 0; max-width: 64ch; }
+:focus-visible { outline: 3px solid var(--red); outline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
+html { scroll-behavior: smooth; }
+/* ---------- station band ---------- */
+.band { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 9; background: var(--band); color: var(--band-ink); box-shadow: 0 3px 0 var(--red); }
+.band .wrap { display: flex; align-items: center; gap: 18px; padding-block: 10px; }
+.brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+.brand img { width: 40px; height: 40px; }
+.brand b { font: 400 30px/1 var(--script); font-weight: 400; }
+.nav { display: flex; gap: 4px; margin-left: auto; flex-wrap: wrap; justify-content: flex-end; }
+.nav a { font: 500 14px var(--head); letter-spacing: 1.4px; text-transform: uppercase; text-decoration: none; padding: 6px 10px; border-radius: 6px; }
+.nav a:hover { background: var(--band-ink); color: var(--band); }
+.nav a.cta { background: var(--red); color: var(--red-ink); }
+@media (max-width: 760px) { .nav a:not(.cta) { display: none; } }
+/* ---------- hero ---------- */
+.hero { padding-block: 56px 40px; }
+.hero .wrap { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 44px; align-items: center; }
+.eyebrow { font: 500 13px var(--head); letter-spacing: 4px; text-transform: uppercase; color: var(--muted); display: flex; align-items: center; gap: 12px; }
+.eyebrow::after { content: ''; flex: 1; border-top: 3px double var(--rule); }
+.hero h1 { font: 400 clamp(64px, 9vw, 116px)/.92 var(--script); font-weight: 400; margin-block: 14px 6px; }
+.hero .sub { font: 600 clamp(22px, 2.6vw, 30px)/1.15 var(--head); text-transform: uppercase; letter-spacing: .6px; margin-bottom: 18px; }
+.hero .sub em { font-style: normal; color: var(--red); }
+.hero p.lead { font-size: 18px; margin-bottom: 26px; }
+.btns { display: flex; flex-wrap: wrap; gap: 10px; }
+.btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 22px; border: 2px solid var(--ink); border-radius: 999px; font: 500 16px var(--head); letter-spacing: 1.4px; text-transform: uppercase; text-decoration: none; background: var(--card); color: var(--ink); cursor: pointer; }
+.btn:hover { background: var(--card-2); }
+.btn.red { background: var(--red); border-color: var(--red); color: var(--red-ink); }
+.btn.red:hover { filter: brightness(1.08); }
+.small-note { font: italic 400 14px var(--mono); color: var(--muted); margin-top: 12px; }
+.tv { position: relative; background: var(--band); padding: 12px; border-radius: 22px; box-shadow: 0 0 0 4px var(--paper), 0 0 0 7px var(--ink), 0 28px 60px rgba(0,0,0,.28); }
+.tv img { border-radius: 12px; width: 100%; height: auto; aspect-ratio: 16 / 10; object-fit: cover; }
+.burst { position: absolute; top: -26px; right: -18px; width: 132px; height: 132px; display: grid; place-items: center; text-align: center; background: var(--red); color: var(--red-ink); font: 600 17px/1.05 var(--head); letter-spacing: 1px; text-transform: uppercase; transform: rotate(-11deg);
+  clip-path: polygon(50% 0, 59% 13%, 75% 7%, 76% 24%, 93% 25%, 87% 41%, 100% 50%, 87% 59%, 93% 75%, 76% 76%, 75% 93%, 59% 87%, 50% 100%, 41% 87%, 25% 93%, 24% 76%, 7% 75%, 13% 59%, 0 50%, 13% 41%, 7% 25%, 24% 24%, 25% 7%, 41% 13%); }
+.burst b { font-size: 36px; display: block; }
+@media (max-width: 900px) { .hero .wrap { grid-template-columns: 1fr; } .burst { width: 104px; height: 104px; font-size: 14px; right: -6px; } .burst b { font-size: 28px; } }
+/* ---------- ribbon ---------- */
+.ribbon { background: var(--red); color: var(--red-ink); }
+.ribbon .wrap { display: flex; flex-wrap: wrap; gap: 8px 30px; justify-content: center; padding-block: 12px; font: 500 15px var(--head); letter-spacing: 2.5px; text-transform: uppercase; }
+.ribbon span::before { content: '★ '; }
+/* ---------- sections ---------- */
+section.s { padding-block: 64px; }
+section.s + section.s { border-top: 3px double var(--rule); }
+.title-card { display: flex; flex-direction: column; gap: 8px; margin-bottom: 30px; }
+.title-card h2 { font: 400 clamp(44px, 5.6vw, 66px)/1 var(--script); font-weight: 400; }
+.title-card p { color: var(--muted); }
+/* price card */
+.price { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 34px; align-items: stretch; }
+.usual { border: 2px dashed var(--rule); border-radius: 16px; padding: 22px; display: flex; flex-direction: column; gap: 14px; color: var(--muted); }
+.usual h3 { font: 500 15px var(--head); letter-spacing: 3px; text-transform: uppercase; }
+.tiers { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.tiers div { border: 2px solid var(--rule); border-radius: 10px; padding: 14px 10px; text-align: center; font: 600 18px var(--head); text-transform: uppercase; text-decoration: line-through; text-decoration-color: var(--red); text-decoration-thickness: 3px; }
+.tiers small { display: block; font: 400 12px var(--mono); text-decoration: none; margin-top: 4px; }
+.ours { border: 3px solid var(--ink); border-radius: 18px; padding: 26px; background: var(--card); box-shadow: 0 0 0 5px var(--card), 0 0 0 7px var(--ink); display: flex; flex-direction: column; gap: 14px; }
+.ours .plan { font: 500 14px var(--head); letter-spacing: 3px; text-transform: uppercase; color: var(--muted); }
+.ours .amt { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+.ours .amt b { font: 600 96px/0.9 var(--head); }
+.ours .amt span { font: 400 34px/1 var(--script); }
+.ours ul { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 18px; }
+.ours li { padding-left: 22px; position: relative; font-size: 15px; }
+.ours li::before { content: '●'; color: var(--red); position: absolute; left: 0; }
+@media (max-width: 820px) { .price { grid-template-columns: 1fr; } .ours ul { grid-template-columns: 1fr; } }
+/* features */
+.feat { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.f { border: 2px solid var(--ink); border-radius: 14px; background: var(--card); padding: 20px; display: flex; flex-direction: column; gap: 8px; }
+.f h3 { font: 600 21px/1.15 var(--head); letter-spacing: .5px; text-transform: uppercase; }
+.f .k { font: 500 12px var(--head); letter-spacing: 2.5px; text-transform: uppercase; color: var(--red); }
+.f p { font-size: 15px; }
+@media (max-width: 960px) { .feat { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 600px) { .feat { grid-template-columns: 1fr; } }
+/* screens */
+.tabs { display: inline-flex; flex-wrap: wrap; border: 2px solid var(--ink); border-radius: 999px; overflow: hidden; margin-bottom: 18px; }
+.tabs button { border: 0; background: var(--card); color: var(--ink); padding: 9px 16px; font: 500 14px var(--head); letter-spacing: 1.2px; text-transform: uppercase; cursor: pointer; }
+.tabs button + button { border-left: 1px solid var(--ink); }
+.tabs button[aria-selected="true"] { background: var(--ink); color: var(--paper); }
+.screen { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 26px; align-items: start; }
+.screen .tv img { aspect-ratio: auto; }
+.screen.phone { grid-template-columns: 300px minmax(0, 1fr); }
+.screen.phone .tv { max-width: 300px; }
+.cap h3 { font: 600 26px/1.1 var(--head); text-transform: uppercase; margin-bottom: 10px; }
+.cap p { font-size: 16px; }
+@media (max-width: 900px) { .screen, .screen.phone { grid-template-columns: 1fr; } .screen.phone .tv { margin-inline: auto; } }
+/* compare */
+.tablewrap { overflow-x: auto; border: 2px solid var(--ink); border-radius: 14px; background: var(--card); }
+table { border-collapse: collapse; width: 100%; min-width: 760px; font-size: 15px; }
+th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+th { font: 500 13px var(--head); letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); }
+tbody tr:first-child { background: var(--card-2); }
+tbody tr:first-child td:first-child { font: 600 16px var(--head); text-transform: uppercase; }
+td:first-child { font-weight: 700; white-space: nowrap; }
+.yes { color: var(--red); font-weight: 700; }
+.src { font: italic 400 13px var(--mono); color: var(--muted); margin-top: 10px; }
+/* downloads */
+.dl { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+.d { border: 2px solid var(--ink); border-radius: 14px; background: var(--card); padding: 18px; display: flex; flex-direction: column; gap: 10px; }
+.d h3 { font: 600 22px var(--head); text-transform: uppercase; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.d h3 small { font: 400 13px var(--mono); color: var(--muted); text-transform: none; }
+.d .file { font: 400 13px var(--mono); color: var(--muted); word-break: break-all; }
+.d ol { margin: 0; padding-left: 20px; font-size: 14px; display: flex; flex-direction: column; gap: 4px; }
+.d .btn { justify-content: center; margin-top: auto; }
+.d .alt { font-size: 13px; text-align: center; }
+/* gift */
+.gift { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 34px; align-items: start; }
+.letter { border: 3px solid var(--ink); border-radius: 18px; background: var(--card); padding: 28px 30px; box-shadow: 0 0 0 5px var(--card), 0 0 0 7px var(--ink); }
+.letter p + p { margin-top: 14px; }
+.letter .sig { font: 400 38px/1 var(--script); margin-top: 18px; }
+.give { display: flex; flex-direction: column; gap: 10px; }
+.give div { border-left: 4px solid var(--red); padding: 4px 0 4px 14px; }
+.give b { font: 600 18px var(--head); text-transform: uppercase; display: block; }
+@media (max-width: 860px) { .gift { grid-template-columns: 1fr; } }
+/* faq */
+.faq { display: grid; gap: 10px; max-width: 900px; }
+details { border: 2px solid var(--ink); border-radius: 12px; background: var(--card); padding: 0 18px; }
+summary { cursor: pointer; padding: 14px 0; font: 600 18px var(--head); text-transform: uppercase; letter-spacing: .4px; list-style: none; display: flex; justify-content: space-between; gap: 12px; }
+summary::after { content: '+'; color: var(--red); font-size: 24px; line-height: 1; }
+details[open] summary::after { content: '–'; }
+details p { padding-bottom: 16px; font-size: 15px; }
+/* footer */
+footer { background: var(--band); color: var(--band-ink); margin-top: 0; }
+footer .wrap { padding-block: 34px; display: flex; flex-wrap: wrap; gap: 18px 40px; justify-content: space-between; align-items: center; font-size: 14px; }
+footer .brand b { font-size: 34px; }
+footer p { color: #B6AC98; max-width: 60ch; }
+</style>
+<meta property="og:title" content="DAWters and Son: the whole studio, on the house">
+<meta property="og:description" content="A free, open-source recording studio. No tiers, no sign-up, no tracking.">
+<meta property="og:image" content="img/master.webp">
+</head>
+<body>
+<header class="band">
+  <div class="wrap">
+    <a class="brand" href="#top"><img src="img/icon.svg" alt="" width="40" height="40"><b>DAWters &amp; Son</b></a>
+    <nav class="nav" aria-label="Sections">
+      <a href="#features">Features</a><a href="#screens">Screens</a><a href="#compare">Compare</a><a href="#gift">The gift</a><a href="#faq">FAQ</a><a class="cta" href="#get">Download free</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+  <section class="hero">
+    <div class="wrap">
+      <div>
+        <div class="eyebrow">Now playing on every screen</div>
+        <h1>DAWters &amp; Son</h1>
+        <div class="sub">The whole recording studio. <em>On the house.</em></div>
+        <p class="lead">Record, mix, master and tune on your Mac, PC, Ubuntu machine, Android phone or in a browser. Every feature, for everyone, forever. It’s open source and it’s a gift.</p>
+        <div class="btns"><a class="btn red" href="#get">Download free</a><a class="btn" href="app/">Try it in your browser</a></div>
+        <p class="small-note">No sign-up. No tracking. No subscription. No ads. No track limit.</p>
+      </div>
+      <div class="tv">
+        <img src="img/master.webp" width="1600" height="1000" alt="The Master tab: mastering recipes on the left, the processing chain in the middle, a VU meter, loudness readouts and a spectrum on the right.">
+        <div class="burst"><span><b>$0</b>every<br>feature</span></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="ribbon"><div class="wrap"><span>Unlimited tracks</span><span>Mac · Windows · Ubuntu · Android · Web</span><span>Open source</span><span>No sign-up</span><span>No tracking</span></div></div>
+
+  <section class="s" id="price">
+    <div class="wrap">
+      <div class="title-card"><div class="eyebrow">The price</div><h2>One plan. It’s free.</h2><p>Most studios come in three tiers, and the good parts live in the expensive one. We skipped that.</p></div>
+      <div class="price">
+        <div class="usual">
+          <h3>The usual way</h3>
+          <div class="tiers"><div>Lite<small>8 tracks</small></div><div>Pro<small>most effects</small></div><div>Ultimate<small>mastering</small></div></div>
+          <p>Upgrade prompts, feature locks, a login to open your own songs.</p>
+        </div>
+        <div class="ours">
+          <div class="plan">Our plan · everyone</div>
+          <div class="amt"><b>$0</b><span>and that’s everything</span></div>
+          <ul>
+            <li>Unlimited audio &amp; instrument tracks</li><li>Mixbus-style console, 4 buses</li>
+            <li>Synth, drum machine, sampler</li><li>Piano roll, GrooveMatrix, MIDI</li>
+            <li>24 effects, all with live audition</li><li>Mastering tab with 16 recipes</li>
+            <li>Noise removal and a tuner</li><li>MP3, AAC, Ogg, Opus, FLAC, WAV</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="s" id="features">
+    <div class="wrap">
+      <div class="title-card"><div class="eyebrow">What’s in the studio</div><h2>Everything, start to finish.</h2><p>From the first take to a file that’s ready for streaming, it all happens in one app.</p></div>
+      <div class="feat">
+        <div class="f"><div class="k">Record</div><h3>As many tracks as you like</h3><p>Arm several tracks at once, punch in and out, loop-record takes, and record over a part without hearing the old one. Latency is measured and corrected for you.</p></div>
+        <div class="f"><div class="k">Mix</div><h3>A console with a knob for everything</h3><p>Every strip has trim, filters, a four-band EQ, gate, compressor, tape and eight inserts. There are four mixbuses, and the master has true-peak limiting.</p></div>
+        <div class="f"><div class="k">Make beats</div><h3>Instruments, patterns, MIDI</h3><p>A synth with 14 presets, a drum machine, a sampler, a piano roll and step grid, and a GrooveMatrix for launching patterns live. Plug in a MIDI keyboard and play.</p></div>
+        <div class="f"><div class="k">Master</div><h3>16 mastering recipes</h3><p>Pick Pop, Hip-hop, Rock, Lo-fi, Podcast and more. Match a loudness target like −14 LUFS in one click, then A/B at equal loudness so you judge the sound and not the volume.</p></div>
+        <div class="f"><div class="k">Effects</div><h3>Hear it before you keep it</h3><p>Limiter, multiband, FET, opto and bus compressors, saturator, tube EQ, de-esser, doubler, tape echo, reverbs and more. Every effect has a Listen button with test sounds.</p></div>
+        <div class="f"><div class="k">Clean up</div><h3>Noise removal and a tuner</h3><p>Sample a second of hiss and take it out of a whole take. Tune guitar, bass, uke or violin with a big, readable needle that works in the dark.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="s" id="screens">
+    <div class="wrap">
+      <div class="title-card"><div class="eyebrow">Real screens</div><h2>Have a look around.</h2><p>Every picture here is the app itself, not a mockup.</p></div>
+      <div class="tabs" role="tablist" aria-label="Screens" id="tabs"></div>
+      <div id="screen"></div>
+    </div>
+  </section>
+
+  <section class="s" id="compare">
+    <div class="wrap">
+      <div class="title-card"><div class="eyebrow">Fair comparison</div><h2>Free, without the fine print.</h2><p>Plenty of studios have a free version. Here’s where theirs stop and ours keeps going.</p></div>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Free option</th><th>Runs on</th><th>Account</th><th>Track limit</th><th>Main catch</th></tr></thead>
+          <tbody>
+            <tr><td>DAWters &amp; Son</td><td>Mac, Windows, Ubuntu, Android, browser</td><td class="yes">None</td><td class="yes">Unlimited</td><td>No third-party plugins yet</td></tr>
+            <tr><td>Cakewalk Sonar (free tier)</td><td>Windows</td><td>BandLab account, periodic online reactivation</td><td>Unlimited</td><td>Core plugins and stretching held back</td></tr>
+            <tr><td>Waveform Free</td><td>Windows, Mac</td><td>Tracktion account</td><td>Unlimited</td><td>Clip launcher, chord and arranger tracks are paid</td></tr>
+            <tr><td>BandLab</td><td>Browser, iOS, Android</td><td>Required</td><td>16 tracks, 15 minutes</td><td>Ads, no plugins</td></tr>
+            <tr><td>Pro Tools Intro</td><td>Windows, Mac</td><td>Required</td><td>8 audio tracks</td><td>AAX plugins only</td></tr>
+            <tr><td>GarageBand</td><td>Mac, iPhone, iPad</td><td>Apple ID</td><td>255 on Mac</td><td>Apple devices only</td></tr>
+            <tr><td>LMMS</td><td>Windows, Mac, Linux</td><td>None</td><td>Unlimited</td><td>Can’t record audio</td></tr>
+            <tr><td>Audacity</td><td>Windows, Mac, Linux</td><td>None</td><td>Unlimited</td><td>An editor: no MIDI or instruments</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="src">Other products as described in Dubspot’s “Best Free DAWs in 2026” (blog.dubspot.com). Check each maker’s site for current terms.</p>
+    </div>
+  </section>
+
+  <section class="s" id="get">
+    <div class="wrap">
+      <div class="title-card"><div class="eyebrow">Version 2.3.3</div><h2>Pick your machine.</h2><p>Every version is the same studio, with the same features and the same song files, so you can start on your phone and finish on your desk.</p></div>
+      <div class="dl" id="dl"></div>
+      <p class="src">The installers aren’t signed with paid certificates yet, so your computer may ask you to confirm the first time. The steps on each card show how.</p>
+    </div>
+  </section>
+
+  <section class="s" id="gift">
+    <div class="wrap">
+      <div class="title-card"><div class="eyebrow">Why it’s free</div><h2>It’s a gift.</h2></div>
+      <div class="gift">
+        <div class="letter">
+          <p>Making music shouldn’t start with a credit card. A kid with a hand-me-down laptop, a songwriter on a phone and a podcaster in a closet all deserve the same tools as a paid studio.</p>
+          <p>So DAWters &amp; Son is open source, and every feature is in every copy. There’s no premium tier waiting behind a button, no account to keep you logged in, and no expiry date. The code is public, so anyone can check it, improve it or keep it going.</p>
+          <p>If it helps you make something, that’s the whole point.</p>
+          <div class="sig">The DAWters &amp; Son crew</div>
+        </div>
+        <div class="give">
+          <div><b>Make something</b>Finish a song. That’s the best thank-you there is.</div>
+          <div><b>Pass it on</b>Show a friend, a student or your band. Gifts are meant to travel.</div>
+          <div><b>Report a bug</b>Tell us what broke and how. It makes the next version better for everyone.</div>
+          <div><b>Help build it</b>Code, translations, test sounds, mastering recipes and tutorials are all welcome.</div>
+          <div class="btns" style="margin-top:8px"><a class="btn" id="srcLink" href="#">View the source code</a></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="s" id="faq">
+    <div class="wrap">
+      <div class="title-card"><div class="eyebrow">Questions</div><h2>Asked and answered.</h2></div>
+      <div class="faq">
+        <details><summary>Is it really free? What’s the catch?</summary><p>There isn’t one. There are no paid tiers, no ads, no account, no trial and no data collection. The source code is public under an open-source license, so it stays free.</p></details>
+        <details><summary>Do I need to sign up, or be online?</summary><p>No. Download it and it works offline. Your songs are saved on your device as .dawters files, and those open on any version.</p></details>
+        <details><summary>Does it track me?</summary><p>No. The app has no analytics, no telemetry and no “phone home”. It never sends anything over the internet; your recordings and settings stay on your device. You can read the source to check.</p></details>
+        <details><summary>Can I sell music I make with it?</summary><p>Yes. Your recordings are yours. The license covers the app’s code, not what you make with it.</p></details>
+        <details><summary>Does it load VST or AU plugins?</summary><p>Not yet. It ships with 24 built-in effects and three instruments. Plugin hosting is on the roadmap for the desktop versions.</p></details>
+        <details><summary>Why does my computer warn me when I install it?</summary><p>Mac and Windows show a warning for apps that aren’t signed with a paid developer certificate. The app is safe and the code is public. Each download card shows the two clicks that get past the warning.</p></details>
+        <details><summary>Will it run on my phone or tablet?</summary><p>Yes, on Android 7 or newer. The Deck view has big controls built for touch: swipe a track right for its settings and left for its effects. There’s no iPhone or iPad version yet.</p></details>
+        <details><summary>Does MIDI work?</summary><p>Yes, in the desktop versions and in Chrome or Edge. On Android, use the on-screen keyboard and drum pads for now.</p></details>
+        <details><summary>How do I get help or report a bug?</summary><p>Open an issue on the project’s code page with what you did, what you expected and what happened. Include your platform and version (see Help › About).</p></details>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <a class="brand" href="#top"><img src="img/icon.svg" alt="" width="40" height="40"><b>DAWters &amp; Son</b></a>
+    <p>Free software under the GNU GPL v3 or later. This site sets no cookies and runs no analytics; it is hosted on GitHub Pages, whose servers keep standard access logs. Encoding by FFmpeg (GPL). Fonts: Yesteryear, Oswald and Courier Prime (SIL Open Font License). Other product names belong to their owners.</p>
+  </div>
+</footer>
+
+<script>
+// Where the files live: change these two lines if the project moves.
+const RELEASES = 'https://github.com/dawters-and-son/dawters-and-son/releases';
+const SOURCE = 'https://github.com/dawters-and-son/dawters-and-son';
+const V = '2.3.3';
+const file = (f) => RELEASES + '/download/v' + V + '/' + f;
+document.getElementById('srcLink').href = SOURCE;
+
+const DL = [
+  { os: 'Mac', req: 'Apple Silicon, macOS 12+', f: 'DAWters-and-Son-' + V + '-arm64.dmg', mb: 131, steps: ['Open the .dmg and drag the app to Applications.', 'Open it once. If macOS stops it, go to System Settings › Privacy & Security and click “Open Anyway”.'] },
+  { os: 'Windows', req: 'Windows 10 or 11, 64-bit', f: 'DAWters-and-Son-' + V + '-Setup-x64.exe', mb: 123, steps: ['Run the installer. No admin password is needed.', 'If SmartScreen appears, click “More info”, then “Run anyway”.'], alt: { t: 'Portable zip, no install', f: 'DAWters-and-Son-' + V + '-win-x64-portable.zip' } },
+  { os: 'Ubuntu', req: 'Ubuntu 22.04+ / Debian, 64-bit', f: 'DAWters-and-Son-' + V + '-amd64.deb', mb: 105, steps: ['Double-click the .deb to install, or run:', 'sudo apt install ./DAWters-and-Son-' + V + '-amd64.deb'] },
+  { os: 'Android', req: 'Android 7+, phone or tablet', f: 'DAWters-and-Son-' + V + '.apk', mb: 10, steps: ['Download the .apk on your phone and open it.', 'Allow “install unknown apps” for your browser when asked.'] },
+  { os: 'Browser', req: 'Chrome or Edge on any computer', href: 'app/', label: 'Open in your browser', mb: 33, steps: ['Nothing to install. Allow the microphone when you record.', 'Your song autosaves in this browser; use File › Save song to keep a copy.'], alt: { t: 'Or download it to run offline (needs Python 3)', f: 'DAWters-and-Son-' + V + '-web.zip' } },
+];
+const dl = document.getElementById('dl');
+DL.forEach((d) => {
+  const card = document.createElement('div'); card.className = 'd';
+  card.innerHTML = '<h3>' + d.os + '<small>' + d.mb + ' MB</small></h3><div class="file">' + d.req + '</div><ol>' + d.steps.map((s) => '<li>' + s.replace(/</g, '&lt;') + '</li>').join('') + '</ol>';
+  const a = document.createElement('a'); a.className = 'btn red'; a.href = d.href || file(d.f); a.rel = 'noopener'; a.textContent = d.label || 'Download for ' + d.os; card.append(a);
+  if (d.alt) { const b = document.createElement('a'); b.className = 'alt'; b.href = file(d.alt.f); b.rel = 'noopener'; b.textContent = d.alt.t; card.append(b); }
+  dl.append(card);
+});
+
+const SCREENS = [
+  { k: 'master', t: 'Master', img: 'master.webp', h: 'Mastering, without the guesswork', p: 'Pick a recipe for your genre, press Match target and it lands on the loudness streaming services expect. The A/B button plays your unmastered mix at the same volume so you can hear what changed.' },
+  { k: 'tracks', t: 'Tracks', img: 'tracks.webp', h: 'Arrange everything in one place', p: 'Audio clips, instrument patterns, fades, volume lines and loop regions all sit on one timeline. Every track has an FX button, and zoom follows the playhead.' },
+  { k: 'console', t: 'Console', img: 'console.webp', h: 'A console with a knob for every job', p: 'Each strip has trim, filters, a four-band EQ, dynamics, tape, eight inserts and four bus sends. The master shows a VU meter, loudness and true peak.' },
+  { k: 'audition', t: 'Effects', img: 'audition.webp', h: 'Listen before you commit', p: 'Every effect opens with a Listen button. Hear it on a drum loop, a voice, a guitar or your own track, turn the knobs while it plays, and flip to dry to compare.' },
+  { k: 'pattern', t: 'Piano roll', img: 'pattern.webp', h: 'Write parts with the mouse, the keys or a MIDI keyboard', p: 'Draw notes in the piano roll or the step grid, set velocities, quantize and transpose. Your computer keyboard doubles as a piano.' },
+  { k: 'night', t: 'Late show', img: 'console-night.webp', h: 'Easy on the eyes at 2 a.m.', p: 'Switch to the dark Late-show look in Settings for night sessions.' },
+  { k: 'phone', t: 'Phone', img: 'phone-deck.webp', phone: true, h: 'A studio in your pocket', p: 'The Deck view has big buttons and swipes. Tap Quick idea to grab a free track and record before the idea’s gone.' },
+  { k: 'tuner', t: 'Tuner', img: 'phone-tuner.webp', phone: true, h: 'A tuner you can read across the room', p: 'Chromatic, guitar, bass, ukulele, violin and mandolin modes, a reference tone, and A4 from 415 to 466 Hz. On Android it gets its own icon.' },
+];
+const tabs = document.getElementById('tabs'), screen = document.getElementById('screen');
+const show = (s) => {
+  tabs.querySelectorAll('button').forEach((b) => b.setAttribute('aria-selected', b.dataset.k === s.k ? 'true' : 'false'));
+  screen.className = 'screen' + (s.phone ? ' phone' : '');
+  screen.innerHTML = '<div class="tv"><img src="img/' + s.img + '" alt="' + s.h + '" width="' + (s.phone ? 700 : 1600) + '" height="' + (s.phone ? 1555 : 1000) + '"></div><div class="cap"><h3>' + s.h + '</h3><p>' + s.p + '</p></div>';
+};
+SCREENS.forEach((s) => { const b = document.createElement('button'); b.role = 'tab'; b.dataset.k = s.k; b.textContent = s.t; b.addEventListener('click', () => show(s)); tabs.append(b); });
+show(SCREENS[0]);
+// preload the rest so switching is instant
+SCREENS.slice(1).forEach((s) => { const i = new Image(); i.src = 'img/' + s.img; });
+</script>
+
+</body>
+</html>
