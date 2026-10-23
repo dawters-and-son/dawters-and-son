@@ -211,7 +211,9 @@ const DECK = {
       const c = clips[k], x1 = this.tToX(r, c.start), x2 = this.tToX(r, c.start + c.len);
       if (x < x1 - 2 || x > x2 + 2) continue;
       const sel = A.ui.sel.has(c.id);
-      let zone = 'body';
+      // the clip's top band (its name bar when the row is tall enough) moves it; the waveform below selects a range
+      const h = r.h - 8, HD = h > 44 ? 14 : 0, band = HD ? HD + (touch ? 8 : 2) : Math.round(h * 0.32);
+      let zone = y - 4 < band ? 'body' : 'wave';
       if (sel && x - x1 < edge && x2 - x1 > edge * 3) zone = 'trimL';
       else if (sel && x2 - x < edge && x2 - x1 > edge * 3) zone = 'trimR';
       return { c, zone, t };
@@ -237,13 +239,14 @@ const DECK = {
         return;
       }
       const o = off(e), touch = e.pointerType !== 'mouse', hh = this.hit(r, o.x, o.y, touch);
-      g = { kind: hh.c ? hh.zone : 'pan', h: hh, x0: e.clientX, t0: this.t0, moved: false, touch, wasSel: hh.c && A.ui.sel.has(hh.c.id) };
+      g = { kind: hh.c ? (hh.zone === 'wave' ? 'range' : hh.zone) : 'pan', h: hh, x0: e.clientX, t0: this.t0, moved: false, touch, wasSel: hh.c && A.ui.sel.has(hh.c.id), shift: e.shiftKey };
+      if (e.shiftKey && !touch) g.kind = 'range';
       if (hh.c) { g.c = hh.c; g.s0 = { start: hh.c.start, off: hh.c.off, len: hh.c.len }; if (!A.ui.sel.has(hh.c.id)) { A.ui.sel = new Set([hh.c.id]); this.dirty = true; ARR.dirty = true; A.inspector(); } }
       lp = setTimeout(() => { if (g && !g.moved && g.kind !== 'pinch') { const gg = g; g = null; r.ptrs.clear(); this.pressMenu(r, gg.h, e.clientX, e.clientY); } }, 520);
       e.preventDefault();
     });
     cv.addEventListener('pointermove', (e) => {
-      if (!r.ptrs.has(e.pointerId) || !g) { if (!g && e.pointerType === 'mouse') { const o = off(e), hh = this.hit(r, o.x, o.y, false); cv.style.cursor = hh.zone === 'trimL' || hh.zone === 'trimR' ? 'ew-resize' : hh.c ? 'grab' : 'default'; } return; }
+      if (!r.ptrs.has(e.pointerId) || !g) { if (!g && e.pointerType === 'mouse') { const o = off(e), hh = this.hit(r, o.x, o.y, false); cv.style.cursor = hh.zone === 'trimL' || hh.zone === 'trimR' ? 'ew-resize' : hh.zone === 'wave' ? 'text' : hh.c ? 'grab' : 'default'; } return; }
       r.ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (g.kind === 'pinch') {
         if (r.ptrs.size < 2) return;
@@ -255,9 +258,14 @@ const DECK = {
       }
       const dx = e.clientX - g.x0;
       if (!g.moved && Math.abs(dx) < (g.touch ? 8 : 4)) return;
-      if (!g.moved) { g.moved = true; clearTimeout(lp); if (g.kind !== 'pan') A.commit(g.kind === 'body' ? 'Move clip' : 'Trim clip'); }
+      if (!g.moved) { g.moved = true; clearTimeout(lp); if (g.kind !== 'pan' && g.kind !== 'range') A.commit(g.kind === 'body' ? 'Move clip' : 'Trim clip'); }
       const dt = dx / r.w * this.span, c = g.c;
       if (g.kind === 'pan') { this.t0 = Math.max(0, g.t0 - dt); this.dirty = true; return; }
+      if (g.kind === 'range') { // drag across the waveform: an Audacity-style range on this track
+        const ti = A.proj.tracks.indexOf(r.t), a = Math.max(0, ARR.snap(g.h.t, e)), b = Math.max(0, ARR.snap(this.xToT(r, off(e).x), e));
+        A.ui.range = { s: Math.min(a, b), e: Math.max(a, b), t0: ti, t1: ti }; A.ui.sel = new Set();
+        A.status('Range ' + A.rangeLabel(A.ui.range)); this.dirty = true; ARR.dirty = true; return;
+      }
       if (g.kind === 'body') c.start = Math.max(0, ARR.snap(g.s0.start + dt, e));
       else if (g.kind === 'trimL') { const s0 = g.s0, end = s0.start + s0.len, ns = U.clamp(ARR.snap(s0.start + dt, e), c.pat ? 0 : Math.max(0, s0.start - s0.off), end - 0.01); c.start = ns; c.off = s0.off + (ns - s0.start); c.len = end - ns; c.fi = Math.min(c.fi, c.len); c.fo = Math.min(c.fo, c.len - c.fi); }
       else if (g.kind === 'trimR') { const s0 = g.s0, b = A.eng.buffers.get(c.buf), max = c.pat ? 3600 : b ? b.ab.duration - s0.off : s0.len; c.len = U.clamp(ARR.snap(s0.start + s0.len + dt, e) - s0.start, 0.01, max); c.fo = Math.min(c.fo, c.len); c.fi = Math.min(c.fi, c.len - c.fo); }
@@ -269,9 +277,10 @@ const DECK = {
       if (g.kind === 'pinch') { if (r.ptrs.size < 2) { g = null; r.ptrs.clear(); } return; }
       const gg = g; g = null;
       if (cancel) return;
-      if (gg.moved) { if (gg.kind !== 'pan') this.endDrag(gg); return; }
+      if (gg.moved) { if (gg.kind === 'range') A.inspector(); else if (gg.kind !== 'pan') this.endDrag(gg); return; }
       // taps
-      if (gg.kind === 'pan') { A.ui.sel = new Set(); A.locate(Math.max(0, ARR.snap(gg.h.t))); this.dirty = true; ARR.dirty = true; A.inspector(); }
+      if (gg.kind === 'range' && gg.shift) { A.extendRange(Math.max(0, ARR.snap(gg.h.t)), A.proj.tracks.indexOf(r.t)); this.dirty = true; ARR.dirty = true; return; }
+      if (gg.kind === 'pan' || (gg.kind === 'range' && !(gg.touch && gg.wasSel))) { if (gg.kind === 'pan') A.ui.sel = new Set(); A.ui.range = null; A.locate(Math.max(0, ARR.snap(gg.h.t))); this.dirty = true; ARR.dirty = true; A.inspector(); }
       else if (gg.touch && gg.wasSel) this.pressMenu(r, gg.h, e.clientX, e.clientY);
     };
     cv.addEventListener('pointerup', (e) => up(e));
@@ -287,6 +296,8 @@ const DECK = {
   },
   endDrag() { A.changed({ clips: true }); this.dirty = true; },
   pressMenu(r, hh, x, y) {
+    const R = A.hasRange() ? A.ui.range : null, ti = A.proj.tracks.indexOf(r.t);
+    if (R && ti >= R.t0 && ti <= R.t1 && hh.t >= R.s && hh.t <= R.e) return K.menu(A.rangeItems(R), x, y);
     if (hh.c) { A.ui.sel = new Set([hh.c.id]); this.dirty = true; return A.clipMenu(hh.c, r.t, hh.t, x, y); }
     K.menu([
       { head: r.t.name + ' · ' + U.fmtTime(Math.max(0, hh.t)) },
@@ -425,6 +436,8 @@ const DECK = {
       const g = r.cv.getContext('2d');
       g.setTransform(1, 0, 0, 1, 0, 0); g.drawImage(r.bg, 0, 0);
       g.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const R = A.ui.range, ti = A.proj.tracks.indexOf(r.t);
+      if (R && R.e > R.s && ti >= R.t0 && ti <= R.t1) { const xa = this.tToX(r, R.s), xb = this.tToX(r, R.e); g.fillStyle = ARR.T.range; g.fillRect(xa, 0, Math.max(1, xb - xa), r.h); }
       const cov = E.recording && E.take ? E.recCover(r.t) : null;
       if (cov) { const xa = Math.max(0, this.tToX(r, cov[0])), xb = Math.min(r.w, cov[1] === Infinity ? r.w : this.tToX(r, cov[1])); if (xb > xa) { g.globalAlpha = 0.72; g.fillStyle = ARR.T.surface; g.fillRect(xa, 2, xb - xa, r.h - 4); g.globalAlpha = 1; } }
       if (E.recording && E.take && pos > E.take.recStart && E.take.armed.some((a) => a.id === r.t.id)) {

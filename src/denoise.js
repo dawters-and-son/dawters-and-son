@@ -119,12 +119,13 @@ const NR = {
   targets() {
     const A0 = A, P = A0.proj, R = A0.ui.range;
     let list = A0.selected().filter((x) => x.c.buf);
-    if (!list.length && R) { list = []; for (let ti = R.t0; ti <= R.t1; ti++) { const t = P.tracks[ti]; if (t) t.clips.forEach((c) => { if (c.buf && c.start < R.e && c.start + c.len > R.s) list.push({ c, t }); }); } }
+    if (!list.length && R) { list = []; for (let ti = R.t0; ti <= R.t1; ti++) { const t = P.tracks[ti]; if (t) t.clips.forEach((c) => { if (c.buf && c.start < R.e && c.start + c.len > R.s) list.push({ c, t }); }); } list.range = R; }
     return list;
   },
   region(c) { const b = A.eng.buffers.get(c.buf); if (!b) return null; const sr = b.ab.sampleRate, a = Math.max(0, Math.floor(c.off * sr)), z = Math.min(b.ab.length, a + Math.ceil(c.len * sr)); const chs = []; for (let ch = 0; ch < b.ab.numberOfChannels; ch++) chs.push(b.ab.getChannelData(ch).slice(a, z)); return { chs, sr, b }; },
   async apply(list, onProg) {
     A.commit('Noise removal');
+    if (list.range) list = A.rangePieces(list.range).filter((x) => x.c.buf); // a range: clean just that stretch
     for (let i = 0; i < list.length; i++) {
       const c = list[i].c, r = this.region(c); if (!r) continue;
       const out = await this.process(r.chs, r.sr, this.opts, (p) => onProg && onProg((i + p) / list.length));

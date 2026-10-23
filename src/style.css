@@ -22,7 +22,7 @@
   --lcd: #1A1611; --lcd-text: #F4EEE1;
   --acc: #C8231B; --acc-text: #FBF8F1;
   --grid: rgba(26, 22, 17, .07); --grid-strong: rgba(26, 22, 17, .2);
-  --sel: rgba(200, 35, 27, .07); --range: rgba(26, 22, 17, .09);
+  --sel: rgba(200, 35, 27, .07); --range: rgba(26, 22, 17, .16);
   --vu: #F1E6C4; --vu-ink: #1A1611;
   --knob: #1F1A14; --knob-hi: #4A4238; --knob-ptr: #F4EEE1;
   --logo-bg: #1A1611; --logo-fg: #F4EEE1;
@@ -41,7 +41,7 @@
   --lcd: #EDE5D3; --lcd-text: #14110D;
   --acc: #E2452F; --acc-text: #FBF8F1;
   --grid: rgba(237, 229, 211, .06); --grid-strong: rgba(237, 229, 211, .2);
-  --sel: rgba(226, 69, 47, .1); --range: rgba(237, 229, 211, .1);
+  --sel: rgba(226, 69, 47, .1); --range: rgba(237, 229, 211, .17);
   --vu: #E3D3A2; --vu-ink: #1A1611;
   --knob: #0C0A08; --knob-hi: #3A332A; --knob-ptr: #EDE5D3;
   --logo-bg: #EDE5D3; --logo-fg: #14110D;

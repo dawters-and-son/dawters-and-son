@@ -6,7 +6,7 @@ const { packager } = require('@electron/packager');
     dir: __dirname + '/app', out: __dirname + '/out', overwrite: true,
     platform: 'darwin', arch: 'arm64', electronVersion: '45.0.0',
     name: 'DAWters and Son', executableName: 'DAWters and Son', appBundleId: 'com.wilk.dawters', appCategoryType: 'public.app-category.music',
-    appVersion: '2.3.4', buildVersion: '10', icon: __dirname + '/../build/icons/dawters.icns', asar: true, prune: false, osxSign: false,
+    appVersion: '2.3.5', buildVersion: '11', icon: __dirname + '/../build/icons/dawters.icns', asar: true, prune: false, osxSign: false,
     extraResource: [__dirname + '/ffmpeg/ffmpeg'],
     appCopyright: 'Copyright © 2026 Josh Wilk. Free software under the GNU GPL v3 or later.',
     extendInfo: { NSMicrophoneUsageDescription: 'DAWters and Son records audio from your microphone or audio interface.', LSMinimumSystemVersion: '12.0', NSHighResolutionCapable: true },

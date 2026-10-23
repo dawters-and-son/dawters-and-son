@@ -1,4 +1,4 @@
-DAWters and Son 2.3.4 for Mac (Apple Silicon)
+DAWters and Son 2.3.5 for Mac (Apple Silicon)
 
 INSTALL
 1. Drag "DAWters and Son" onto the Applications folder.

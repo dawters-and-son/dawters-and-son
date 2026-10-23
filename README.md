@@ -1,4 +1,4 @@
-# DAWters and Son — v2.3.4
+# DAWters and Son — v2.3.5
 
 **Free software.** Copyright (C) 2026 Josh Wilk. Licensed under the GNU General Public License,
 version 3 or (at your option) any later version — see [LICENSE](LICENSE). Bundled third-party parts
@@ -13,8 +13,8 @@ processors, no UI libraries, works offline; ffmpeg for compressed exports) ships
 |---|---|---|
 | Mac (Apple Silicon) | `dist/DAWters-and-Son-2.2-arm64.dmg` | Electron 45 shell, ad-hoc signed — first launch needs *Open Anyway* in Privacy & Security; native ffmpeg inside |
 | Android 7.0+ | `dist/DAWters-and-Son-2.2.apk` | WebView shell, phones and tablets, saves to `Music/DAWters and Son/`; ffmpeg.wasm inside |
-| Windows 10/11 (x64) | `dist/DAWters-and-Son-2.3.4-Setup-x64.exe` (+ `-win-x64-portable.zip`) | Same Electron shell; per-user NSIS installer (no admin), Start-menu **D&S Tuner** shortcut, `.dawters` association, native ffmpeg.exe; unsigned → SmartScreen *More info › Run anyway* |
-| Ubuntu / Debian (amd64) | `dist/DAWters-and-Son-2.3.4-amd64.deb` | Same Electron shell; launcher + **D&S Tuner** launcher, `application/x-dawters` file type, hicolor icons, static ffmpeg, AppArmor profile for Ubuntu 24.04's user-namespace restriction |
+| Windows 10/11 (x64) | `dist/DAWters-and-Son-2.3.5-Setup-x64.exe` (+ `-win-x64-portable.zip`) | Same Electron shell; per-user NSIS installer (no admin), Start-menu **D&S Tuner** shortcut, `.dawters` association, native ffmpeg.exe; unsigned → SmartScreen *More info › Run anyway* |
+| Ubuntu / Debian (amd64) | `dist/DAWters-and-Son-2.3.5-amd64.deb` | Same Electron shell; launcher + **D&S Tuner** launcher, `application/x-dawters` file type, hicolor icons, static ffmpeg, AppArmor profile for Ubuntu 24.04's user-namespace restriction |
 | Localhost web | `dist/DAWters-and-Son-2.2-web.zip` | Double-click the starter → `http://localhost:8737`; also runs straight from `index.html` in Chrome (WAV export only that way) |
 
 ## Phase 1 features
@@ -45,6 +45,18 @@ Wobble Tremolo, Tangerine Tube Drive, Rainbow 10-band Graphic EQ.
 **Files** — `.dawters` song files (zip with project JSON + 32-bit float WAVs), autosave on the device,
 import WAV/MP3/OGG/FLAC/M4A (drag and drop too), offline export of stereo mixdown or stems (zip),
 16-bit dithered / 24 / 32-float, 44.1/48/96 kHz, tail, normalize; export reports peak and integrated LUFS.
+
+## v2.3.5 — Audacity-style range editing
+
+- **Drag across a waveform** (in Tracks or Deck) to select a range; drag a clip by its **name bar** to move it
+  (edges still trim, the name bar's corners still set fades). A plain click on a waveform places the playhead
+  and selects that clip; **Shift-click** stretches the range, or makes one from the playhead; **[** and **]**
+  set the range start and end at the playhead, also while playing.
+- **Range tools** (right-click inside the range, the Edit menu, or long-press on touch): Cut (Ctrl+X, closes the
+  gap), Copy (Ctrl+C), Delete (Del, closes the gap), Silence (Ctrl+L, leaves a gap), Trim to range, Split at the
+  edges, Get noise profile from range, Remove noise in range (cleans only the range), Fade in / out over the
+  range, Amplify, Normalize, Reverse, Loop, Punch, Insert silence, Zoom to range and Export range as WAV.
+  Every tool is one undo step and works across several tracks.
 
 ## v2.3.4 — crash and ride, pattern clips play where they sit
 
@@ -318,7 +330,7 @@ Mac build from Linux: `@electron/packager` (darwin/arm64) → `rcodesign sign` (
 `tools/make_dmg.py` (HFS+ via libdmg-hfsplus, preserves framework symlinks). On a Mac you can
 replace the last two steps with `codesign --force --deep -s -` and `hdiutil create`.
 
-Android (versionCode 10): `android/build-apk.sh` (aapt → javac → dx → zipalign → apksigner), package
+Android (versionCode 11): `android/build-apk.sh` (aapt → javac → dx → zipalign → apksigner), package
 `com.wilk.dawters`, minSdk 24, targetSdk 28, no INTERNET permission. Release builds are signed with the
 maintainer's key, passed in as `DAWTERS_KEYSTORE` (path) and `DAWTERS_KS_PASS`; the key is never in the
 repository. Without them the script signs with a throwaway development key, which is fine for testing but

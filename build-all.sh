@@ -11,7 +11,7 @@
 #   windows: makensis (apt install nsis); Electron for win32 is downloaded once; ffmpeg.exe from @ffmpeg-installer/win32-x64
 set -e
 cd "$(dirname "$0")"
-V=2.3.4
+V=2.3.5
 python3 build.py
 cp LICENSE web/LICENSE.txt; cp LICENSE mac/app/LICENSE; cp LICENSE build/LICENSE.txt
 cp dist/dawters.html web/index.html

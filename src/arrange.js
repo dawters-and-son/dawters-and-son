@@ -130,6 +130,7 @@ const ARR = {
     else { const t = this.xToT(anchorX); this.lanes.scrollLeft = Math.max(0, t * this.pps - anchorX); }
     this.dirty = true;
   },
+  zoomRange(R) { const len = Math.max(0.05, R.e - R.s); this.pps = U.clamp(this.vw / (len * 1.15), 2, 4000); this.layout(); this.lanes.scrollLeft = Math.max(0, R.s * this.pps - this.vw * 0.075); this.dirty = true; },
   fit() {
     const e = Math.max(M.songEnd(A.proj), 10);
     this.pps = U.clamp((this.vw - 40) / e, 2, 4000); this.layout(); this.lanes.scrollLeft = 0;
@@ -254,7 +255,8 @@ const ARR = {
       else if (sel && yy < this.HDR + (touch ? 18 : 8) && Math.abs(ox - fx2) < EDGE && x2 - ox < (x2 - x1) / 2) r.zone = 'fadeout';
       else if (sel && ox - x1 < EDGE && x2 - x1 > EDGE * 3) r.zone = 'trimL';
       else if (sel && x2 - ox < EDGE && x2 - x1 > EDGE * 3) r.zone = 'trimR';
-      else r.zone = 'body';
+      else if (yy < 4 + this.HDR + (touch ? 8 : 0)) r.zone = 'body'; // the clip's name bar: drag to move
+      else r.zone = 'wave'; // the waveform: drag to select a range, click to place the playhead
       return r;
     }
     return r;
@@ -268,7 +270,7 @@ const ARR = {
     const pad = 8, n = U.clamp(1 - (yy - pad) / (h - pad * 2), 0, 1);
     return tr.show === 'vol' ? Math.min(2, U.undb(K.posToDb(n))) : n * 2 - 1;
   },
-  cursorFor(z) { return { trimL: 'ew-resize', trimR: 'ew-resize', fadein: 'nesw-resize', fadeout: 'nwse-resize', body: 'grab', envpt: 'move', envline: 'copy' }[z] || 'crosshair'; },
+  cursorFor(z) { return { trimL: 'ew-resize', trimR: 'ew-resize', fadein: 'nesw-resize', fadeout: 'nwse-resize', body: 'grab', wave: 'text', envpt: 'move', envline: 'copy' }[z] || 'crosshair'; },
   // ---------- pointer ----------
   down(e, viaTouch) {
     if (!viaTouch) this.lanes.focus({ preventScroll: true });
@@ -284,7 +286,7 @@ const ARR = {
       else d.pi = h.pi;
       d.kind = 'env'; d.env = env; d.tr = tr;
       if (!env.on) env.on = true;
-    } else if (h.clip && !e.shiftKey) {
+    } else if (h.clip && !e.shiftKey && h.zone !== 'wave') {
       const c = h.clip;
       if (!A.ui.sel.has(c.id)) { if (!(e.ctrlKey || e.metaKey) || h.zone !== 'body') A.ui.sel = new Set(); A.ui.sel.add(c.id); }
       else if ((e.ctrlKey || e.metaKey) && h.zone === 'body' && false) A.ui.sel.delete(c.id);
@@ -294,7 +296,7 @@ const ARR = {
       d.copy = (e.ctrlKey || e.metaKey) && h.zone === 'body';
       this.cv.style.cursor = h.zone === 'body' ? 'grabbing' : this.cursorFor(h.zone);
     } else {
-      d.kind = 'range';
+      d.kind = 'range'; d.shift = e.shiftKey; d.clickClip = h.clip || null;
       if (!(e.ctrlKey || e.metaKey)) A.ui.sel = new Set();
       d.ti0 = h.ti < 0 ? A.proj.tracks.length - 1 : h.ti;
     }
@@ -378,8 +380,9 @@ const ARR = {
       this.dirty = true; A.changed({ inspector: true }); return;
     }
     if (d.kind === 'range' && !d.moved) {
+      if (d.shift) { A.extendRange(Math.max(0, this.snap(d.h.t, e)), d.ti0); this.dirty = true; A.changed({ inspector: true }); return; }
       A.ui.range = null;
-      if (d.h.zone === 'below') { /* nothing */ }
+      if (d.clickClip) A.ui.sel = new Set([d.clickClip.id]); // a click on a waveform selects that clip (for clip tools) and moves the playhead
       A.locate(Math.max(0, this.snap(d.h.t, e)));
     } else if (d.moved && d.kind !== 'range') {
       A.changed({ clips: true, graph: d.kind === 'env' });
@@ -402,19 +405,14 @@ const ARR = {
   ctx(e) {
     const h = this.hit(e.offsetX, e.offsetY);
     if (h.zone === 'envpt') { K.menu([{ label: 'Delete point', act: () => { A.commit('Delete envelope point'); h.track.env[h.track.show].pts.splice(h.pi, 1); A.changed({ graph: true }); } }, { label: 'Reset point to ' + (h.track.show === 'vol' ? '0 dB' : 'centre'), act: () => { A.commit('Envelope point'); h.track.env[h.track.show].pts[h.pi].v = h.track.show === 'vol' ? 1 : 0; A.changed({ graph: true }); } }], e.clientX, e.clientY); return; }
-    if (h.clip) {
+    const R = A.hasRange() ? A.ui.range : null;
+    const inR = R && h.ti >= R.t0 && h.ti <= R.t1 && h.t >= R.s && h.t <= R.e;
+    if (h.clip && !inR) {
       if (!A.ui.sel.has(h.clip.id)) A.ui.sel = new Set([h.clip.id]);
       this.dirty = true; A.clipMenu(h.clip, h.track, h.t, e.clientX, e.clientY); return;
     }
-    const R = A.ui.range;
     K.menu([
-      R ? { head: 'Range ' + (R.e - R.s).toFixed(2) + ' s' } : { head: h.track ? h.track.name : 'Timeline' },
-      R ? { label: 'Loop this range', act: () => A.setLoop(R.s, R.e, true) } : null,
-      R ? { label: 'Punch-record this range', act: () => { A.commit('Punch range'); A.proj.punch = { on: true, s: R.s, e: R.e }; A.changed({ transport: true }); } } : null,
-      R ? { label: 'Split clips at range edges', act: () => A.splitRange(R) } : null,
-      R ? { label: 'Delete audio in range', key: 'Del', act: () => A.deleteRange(R, false) } : null,
-      R ? { label: 'Delete range and close gap', act: () => A.deleteRange(R, true) } : null,
-      R ? { label: 'Insert silence of this length', act: () => A.insertSilence(R) } : null,
+      ...(R ? A.rangeItems(R) : [{ head: h.track ? h.track.name : 'Timeline' }]),
       R ? { sep: true } : null,
       { label: 'Paste here', key: 'Ctrl+V', disabled: !A.clipboard, act: () => { if (h.track) A.selectTrack(h.track.id, true); A.paste(Math.max(0, this.snap(h.t))); } },
       { label: 'Import audio here…', act: () => { if (h.track) A.selectTrack(h.track.id, true); A.locate(Math.max(0, this.snap(h.t))); A.importAudio(); } },

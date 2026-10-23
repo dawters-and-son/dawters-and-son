@@ -380,13 +380,14 @@ const A = {
     this.changed({ clips: true }); this.status('Split ' + n + ' clip' + (n === 1 ? '' : 's'));
   },
   deleteSel() {
-    if (this.ui.range) return this.deleteRange(this.ui.range, false);
+    if (this.hasRange()) return this.deleteRange(this.ui.range, true);
     const s = this.selected(); if (!s.length) return;
     this.commit('Delete clips');
     for (const x of s) x.t.clips.splice(x.t.clips.indexOf(x.c), 1);
     this.ui.sel = new Set(); this.changed({ clips: true });
   },
   copy(cut) {
+    if (this.hasRange()) return cut ? this.cutRange(this.ui.range) : this.copyRange(this.ui.range);
     const s = this.selected(); if (!s.length) return K.toast('Select clips to ' + (cut ? 'cut' : 'copy'));
     const t0 = Math.min(...s.map((x) => x.c.start)), ti0 = Math.min(...s.map((x) => x.ti));
     this.clipboard = s.map((x) => ({ c: JSON.parse(JSON.stringify(x.c)), dt: x.c.start - t0, dti: x.ti - ti0 }));
@@ -428,15 +429,15 @@ const A = {
     let mx = 0; for (let ch = 0; ch < b.ab.numberOfChannels; ch++) { const d = b.ab.getChannelData(ch); for (let i = s; i < e; i++) { const a = Math.abs(d[i]); if (a > mx) mx = a; } }
     return mx;
   },
-  normalize(list) {
+  normalize(list, quiet) {
     list = (list || this.selected()).filter((x) => x.c.buf); if (!list.length) return;
-    this.commit('Normalize');
+    if (!quiet) this.commit('Normalize');
     for (const x of list) { const pk = this.clipPeak(x.c); if (pk > 1e-6) x.c.gain = U.undb(-1) / pk; }
     this.changed({ clips: true });
   },
-  reverse(list) {
+  reverse(list, quiet) {
     list = (list || this.selected()).filter((x) => x.c.buf); if (!list.length) return;
-    this.commit('Reverse');
+    if (!quiet) this.commit('Reverse');
     for (const x of list) {
       const c = x.c, b = this.eng.buffers.get(c.buf); if (!b) continue;
       const sr = b.ab.sampleRate, s = Math.floor(c.off * sr), n = Math.max(1, Math.round(c.len * sr));
@@ -496,8 +497,112 @@ const A = {
     const msg = await PLAT.save((c.name || 'clip').replace(/[^\w\- ]+/g, '') + '.wav', new Blob([U.encodeWav(chs, sr, 24)], { type: 'audio/wav' }));
     if (msg) K.toast(msg);
   },
-  // ---------- ranges ----------
+  // ---------- ranges (Audacity-style: drag across a waveform, then edit just that stretch) ----------
   rangeTracks(R) { return this.proj.tracks.slice(R.t0, R.t1 + 1); },
+  hasRange() { const R = this.ui.range; return !!(R && R.e - R.s > 0.0005); },
+  rangeLabel(R) { return U.fmtTime(R.s) + ' → ' + U.fmtTime(R.e) + ' (' + (R.e - R.s).toFixed(3) + ' s)'; },
+  // split every clip on the range's tracks at the range edges; returns the pieces that now sit inside it
+  rangePieces(R) {
+    const out = [];
+    this.rangeTracks(R).forEach((t, k) => {
+      for (const c of t.clips.slice()) { const n = this.splitClip(t, c, R.s); this.splitClip(t, n || c, R.e); }
+      for (const c of t.clips) if (c.start >= R.s - 1e-6 && c.start + c.len <= R.e + 1e-6) out.push({ t, c, ti: R.t0 + k });
+    });
+    return out;
+  },
+  // run an edit on just the range: one undo step, clips split at its edges first
+  rangeOp(R, label, fn) {
+    if (!(R && R.e - R.s > 0.0005)) return K.toast('Drag across a waveform to select a range first');
+    this.commit(label);
+    const pieces = this.rangePieces(R);
+    fn(pieces);
+    this.ui.sel = new Set(pieces.map((x) => x.c.id));
+    this.changed({ clips: true }); this.status(label + ': ' + this.rangeLabel(R));
+  },
+  // copy what is inside the range without touching the song (clips are trimmed to the range in the clipboard)
+  copyRange(R) {
+    const out = [];
+    this.rangeTracks(R).forEach((t, k) => {
+      for (const c of t.clips) {
+        const s = Math.max(R.s, c.start), e = Math.min(R.e, c.start + c.len); if (e - s < 0.001) continue;
+        const n = JSON.parse(JSON.stringify(c)); n.start = s; n.off = c.off + (s - c.start); n.len = e - s;
+        n.fi = s === c.start ? Math.min(c.fi, n.len) : 0; n.fo = e === c.start + c.len ? Math.min(c.fo, n.len - n.fi) : 0;
+        out.push({ c: n, dt: s - R.s, dti: k });
+      }
+    });
+    if (!out.length) return K.toast('Nothing to copy in that range');
+    this.clipboard = out; this.status('Copied ' + this.rangeLabel(R));
+    return true;
+  },
+  cutRange(R) { if (this.copyRange(R)) { this.deleteRange(R, true); this.status('Cut ' + (R.e - R.s).toFixed(3) + ' s — Ctrl+V pastes it at the playhead'); } },
+  // keep only the range in the clips it touches (Audacity's Trim Audio)
+  trimToRange(R) {
+    if (!this.hasRange()) return;
+    this.commit('Trim to range');
+    for (const t of this.rangeTracks(R)) for (const c of t.clips) {
+      const s = Math.max(R.s, c.start), e = Math.min(R.e, c.start + c.len); if (e - s < 0.001) continue;
+      const fiKeep = s === c.start, foKeep = e === c.start + c.len;
+      c.off += s - c.start; c.start = s; c.len = e - s; c.fi = fiKeep ? Math.min(c.fi, c.len) : 0; c.fo = foKeep ? Math.min(c.fo, c.len - c.fi) : 0;
+    }
+    this.changed({ clips: true }); this.status('Trimmed to ' + this.rangeLabel(R));
+  },
+  // Shift-click: stretch the range (or make one from the playhead) to the clicked time and track
+  extendRange(t, ti) {
+    const R = this.ui.range, P = this.proj;
+    const tiSel = Math.max(0, P.tracks.indexOf(this.sel()));
+    if (R) { if (Math.abs(t - R.s) < Math.abs(t - R.e)) R.s = t; else R.e = t; if (R.s > R.e) { const x = R.s; R.s = R.e; R.e = x; } R.t0 = Math.min(R.t0, ti); R.t1 = Math.max(R.t1, ti); }
+    else { const p = this.eng.pos(); this.ui.range = { s: Math.min(p, t), e: Math.max(p, t), t0: Math.min(tiSel, ti), t1: Math.max(tiSel, ti) }; }
+    this.status('Range ' + this.rangeLabel(this.ui.range));
+  },
+  // [ and ]: set the range start / end at the playhead (works while playing, like in and out points)
+  rangeEdgeAtPlayhead(which) {
+    const p = this.eng.pos(), P = this.proj;
+    let R = this.ui.range;
+    if (!R) { const ti = Math.max(0, P.tracks.indexOf(this.sel())); R = this.ui.range = { s: p, e: p, t0: ti, t1: ti }; }
+    if (which === 's') { R.s = p; if (R.e < p) R.e = p; } else { R.e = p; if (R.s > p) R.s = p; }
+    ARR.dirty = true; if (window.DECK) DECK.dirty = true;
+    this.status((which === 's' ? 'Range start ' : 'Range end ') + U.fmtTime(p) + (R.e > R.s ? ' · ' + this.rangeLabel(R) : ' — now press ] at the end'));
+  },
+  async amplifyRange(R) {
+    const v = await K.prompt('Amplify range', 'Gain (dB)', '3'); if (v === null || v === undefined) return;
+    const db = U.clamp(parseFloat(v) || 0, -60, 24);
+    this.rangeOp(R, 'Amplify ' + (db > 0 ? '+' : '') + db + ' dB', (L) => L.forEach((x) => { x.c.gain = (x.c.gain === undefined ? 1 : x.c.gain) * U.undb(db); }));
+  },
+  async exportRange(R) {
+    if (!this.hasRange()) return;
+    K.toast('Rendering the range…');
+    const buf = await this.eng.render({ s: R.s, e: R.e });
+    const chs = []; for (let c = 0; c < buf.numberOfChannels; c++) chs.push(buf.getChannelData(c));
+    const msg = await PLAT.save((this.proj.name || 'Song').replace(/[^\w\- ]+/g, '') + ' range ' + R.s.toFixed(1) + '-' + R.e.toFixed(1) + 's.wav', new Blob([U.encodeWav(chs, buf.sampleRate, 24)], { type: 'audio/wav' }));
+    if (msg) K.toast(msg);
+  },
+  // the range menu (right-click inside a range, Edit menu, long-press on touch)
+  rangeItems(R) {
+    const hasAudio = this.rangeTracks(R).some((t) => t.clips.some((c) => c.buf && c.start < R.e && c.start + c.len > R.s));
+    return [
+      { head: 'Range ' + this.rangeLabel(R) },
+      { label: 'Cut', key: 'Ctrl+X', act: () => this.cutRange(R) },
+      { label: 'Copy', key: 'Ctrl+C', act: () => this.copyRange(R) },
+      { label: 'Delete (close the gap)', key: 'Del', act: () => this.deleteRange(R, true) },
+      { label: 'Silence (leave a gap)', key: 'Ctrl+L', act: () => this.deleteRange(R, false) },
+      { label: 'Trim to range (keep only this)', act: () => this.trimToRange(R) },
+      { label: 'Split at range edges', act: () => this.splitRange(R) },
+      { sep: true },
+      { label: 'Get noise profile from range', disabled: !hasAudio, act: () => { const err = NR.capture(); if (err) K.toast(err); else { K.toast('Noise profile taken from the range. Now select what to clean and choose Remove noise.'); } } },
+      { label: 'Remove noise in range…', disabled: !hasAudio, act: () => NR.dialog() },
+      { label: 'Fade in over range', disabled: !hasAudio, act: () => this.rangeOp(R, 'Fade in', (L) => L.forEach((x) => { if (x.c.buf) { x.c.fi = x.c.len; x.c.fo = 0; } })) },
+      { label: 'Fade out over range', disabled: !hasAudio, act: () => this.rangeOp(R, 'Fade out', (L) => L.forEach((x) => { if (x.c.buf) { x.c.fo = x.c.len; x.c.fi = 0; } })) },
+      { label: 'Amplify range…', disabled: !hasAudio, act: () => this.amplifyRange(R) },
+      { label: 'Normalize range to −1 dB', disabled: !hasAudio, act: () => this.rangeOp(R, 'Normalize range', (L) => this.normalize(L, true)) },
+      { label: 'Reverse range', disabled: !hasAudio, act: () => this.rangeOp(R, 'Reverse range', (L) => this.reverse(L, true)) },
+      { sep: true },
+      { label: 'Loop this range', act: () => this.setLoop(R.s, R.e, true) },
+      { label: 'Punch-record this range', act: () => { this.commit('Punch range'); this.proj.punch = { on: true, s: R.s, e: R.e }; this.changed({ transport: true }); } },
+      { label: 'Insert silence of this length', act: () => this.insertSilence(R) },
+      { label: 'Zoom to range', act: () => ARR.zoomRange(R) },
+      { label: 'Export range as WAV', act: () => this.exportRange(R) },
+    ];
+  },
   splitRange(R) { this.commit('Split range'); for (const t of this.rangeTracks(R)) for (const c of t.clips.slice()) { const n = this.splitClip(t, c, R.s); this.splitClip(t, n || c, R.e); } this.changed({ clips: true }); },
   deleteRange(R, ripple) {
     this.commit(ripple ? 'Delete range (ripple)' : 'Delete range');
@@ -912,7 +1017,16 @@ const A = {
     ];
   },
   menuEdit() {
-    const s = this.selected().length;
+    const s = this.selected().length, R = this.hasRange() ? this.ui.range : null;
+    if (R) return [
+      { label: 'Undo' + (this.history.u.length ? ' ' + this.history.u[this.history.u.length - 1].label : ''), key: 'Ctrl+Z', disabled: !this.history.u.length, act: () => this.undo() },
+      { label: 'Redo', key: 'Ctrl+Shift+Z', disabled: !this.history.r.length, act: () => this.redo() },
+      { sep: true },
+      ...this.rangeItems(R),
+      { sep: true },
+      { label: 'Paste at playhead', key: 'Ctrl+V', disabled: !this.clipboard, act: () => this.paste() },
+      { label: 'Clear the range', key: 'Esc', act: () => { this.ui.range = null; ARR.dirty = true; if (window.DECK) DECK.dirty = true; } },
+    ];
     return [
       { label: 'Undo' + (this.history.u.length ? ' ' + this.history.u[this.history.u.length - 1].label : ''), key: 'Ctrl+Z', disabled: !this.history.u.length, act: () => this.undo() },
       { label: 'Redo', key: 'Ctrl+Shift+Z', disabled: !this.history.r.length, act: () => this.redo() },
@@ -923,6 +1037,8 @@ const A = {
       { label: 'Duplicate', key: 'Ctrl+D', disabled: !s, act: () => this.duplicate() },
       { label: 'Delete', key: 'Del', disabled: !s && !this.ui.range, act: () => this.deleteSel() },
       { label: 'Split at playhead', key: 'S', act: () => this.split() },
+      { label: 'Range start at playhead', key: '[', act: () => this.rangeEdgeAtPlayhead('s') },
+      { label: 'Range end at playhead', key: ']', act: () => this.rangeEdgeAtPlayhead('e') },
       { sep: true },
       { label: 'Normalize selected', disabled: !s, act: () => this.normalize() },
       { label: 'Reverse selected', disabled: !s, act: () => this.reverse() },
@@ -976,15 +1092,15 @@ const A = {
   helpKeys() {
     const rows = [['Space', 'Play / stop'], ['R', 'Record'], ['Home / End', 'Start / end of song'], ['← →', 'Nudge selected clips by the snap grid (or move a bar)'], [', .', 'Previous / next marker'], ['L', 'Loop on/off'], ['P', 'Punch on/off'], ['C', 'Metronome'], ['S', 'Split at playhead'], ['Del', 'Delete clips or range'],
       ['Ctrl+Z / Ctrl+Shift+Z', 'Undo / redo'], ['Ctrl+C X V D', 'Copy, cut, paste, duplicate'], ['Ctrl+A', 'Select all clips'], ['Ctrl+T', 'Add track'], ['Ctrl+S / O', 'Save / open song'], ['Ctrl+I / E', 'Import / export'], ['Tab', 'Tracks ⇄ Console'], ['+ − F', 'Zoom in, out, fit'], ['M', 'Add marker'],
-      ['A W S E D F T G Y H U J K', 'Play notes in the Pattern view (Z / X: octave)'], ['Pattern view: click', 'Add a note (drag to set its length); double-click or right-click deletes'], ['Pattern view: ↑ ↓ ← →', 'Transpose / nudge selected notes'], ['Drag on empty lane', 'Select a range (right-click it for range tools)'], ['Ctrl-drag clip', 'Copy it'], ['Alt while dragging', 'Ignore snap'], ['Drag the ruler top', 'Set the loop (Shift: punch range)'], ['Double-click ruler', 'Add marker'], ['Double-click a knob or fader', 'Reset it'], ['Shift-drag a knob or fader', 'Fine adjust']];
+      ['A W S E D F T G Y H U J K', 'Play notes in the Pattern view (Z / X: octave)'], ['Pattern view: click', 'Add a note (drag to set its length); double-click or right-click deletes'], ['Pattern view: ↑ ↓ ← →', 'Transpose / nudge selected notes'], ['Drag across a waveform', 'Select a range, as in Audacity (right-click it for range tools)'], ['Shift-click', 'Stretch the range (or make one from the playhead)'], ['[ / ]', 'Range start / end at the playhead (also while playing)'], ['Del · Ctrl+L', 'Delete the range and close the gap · silence it'], ['Drag a clip by its name bar', 'Move it (edges trim, top corners fade)'], ['Ctrl-drag a name bar', 'Copy the clip'], ['Alt while dragging', 'Ignore snap'], ['Drag the ruler top', 'Set the loop (Shift: punch range)'], ['Double-click ruler', 'Add marker'], ['Double-click a knob or fader', 'Reset it'], ['Shift-drag a knob or fader', 'Fine adjust']];
     K.dialog('Keyboard & mouse', K.h('div', { class: 'keys' }, rows.flatMap(([k, v]) => [K.h('kbd', null, k), K.h('span', null, v)])), [{ label: 'Close', primary: true }], { width: 'min(640px,100%)' });
   },
   about() {
     K.dialog('About', [
       K.h('div', { style: 'display:flex;align-items:center;gap:16px' }, K.h('div', { html: K.LOGO, style: 'width:84px;height:84px;flex:none' }),
         K.h('div', { style: 'flex:1' }, K.h('div', { style: 'font:400 46px/1 var(--script)' }, 'DAWters & Son'), K.h('div', { style: 'font:500 12px var(--head);letter-spacing:3px;text-transform:uppercase;color:var(--muted)' }, '★ Good to the last take ★')),
-        K.h('div', { class: 'burst' }, 'New 2.3.4')),
-      K.h('div', { class: 'note' }, 'Version 2.3.4 — the drum synth has a crash and a ride cymbal, and a pattern placed on the timeline now plays where it sits even after you used Loop. 2.3.3: DAWters and Son is free software, released under the GNU General Public License, version 3 or later. 2.3.2: recording over a track silences its old audio while you record. 2.3.1: hear any effect live with Audition (test sounds, your own track, the song or the mic). 2.3: a Master tab with 16 mastering recipes, level-matched A/B and a spectrum view; a built-in Tuner; noise removal from a noise sample; and a studio set of effects: true-peak limiter, multiband, FET / opto / bus compressors, saturator, tube EQ, de-esser, transient shaper, doubler, imager, tape echo and new reverb rooms. Everything is plain signal processing — no AI.'),
+        K.h('div', { class: 'burst' }, 'New 2.3.5')),
+      K.h('div', { class: 'note' }, 'Version 2.3.5 — Audacity-style editing: drag across any waveform to select a range, then cut, copy, delete, silence, trim, fade, amplify or reverse just that stretch, or take a noise profile from it; drag a clip by its name bar to move it. 2.3.4: the drum synth has a crash and a ride cymbal, and a pattern placed on the timeline now plays where it sits even after you used Loop. 2.3.3: DAWters and Son is free software, released under the GNU General Public License, version 3 or later. 2.3.2: recording over a track silences its old audio while you record. 2.3.1: hear any effect live with Audition (test sounds, your own track, the song or the mic). 2.3: a Master tab with 16 mastering recipes, level-matched A/B and a spectrum view; a built-in Tuner; noise removal from a noise sample; and a studio set of effects: true-peak limiter, multiband, FET / opto / bus compressors, saturator, tube EQ, de-esser, transient shaper, doubler, imager, tape echo and new reverb rooms. Everything is plain signal processing — no AI.'),
       K.h('div', { class: 'note' }, 'Still here from 2.2: the On the Air look, loudness-target exports, bus bounces and bus stems, ffmpeg exports (MP3, AAC, Ogg, Opus, FLAC), instruments, piano roll, GrooveMatrix and MIDI.'),
       K.h('div', { class: 'note' }, 'A multitrack studio in the spirit of the classic home-recording DAWs: unlimited tracks, a knob-per-function console with four mixbuses, a master with true-peak limiting, loudness and VU metering. Works without an internet connection; your current song autosaves on this device.'),
       K.h('div', { class: 'note' }, 'Fonts: Yesteryear, Oswald and Courier Prime — SIL Open Font License 1.1. Encoding: FFmpeg (LGPL/GPL), LAME, libvorbis, Opus.'),
@@ -1045,6 +1161,7 @@ const A = {
         if (kk === 'c') return go(() => this.copy(false));
         if (kk === 'x') return go(() => this.copy(true));
         if (kk === 'v') return go(() => this.paste());
+        if (kk === 'l') return go(() => { if (this.hasRange()) this.deleteRange(this.ui.range, false); });
         if (kk === 'd') return go(() => this.duplicate());
         if (kk === 'a') return go(() => { this.ui.sel = new Set(this.allClips().map((x) => x.c.id)); ARR.dirty = true; this.inspector(); });
         if (kk === 's') return go(() => this.saveProject());
@@ -1069,6 +1186,8 @@ const A = {
       if (k === 'M' && e.shiftKey) return go(() => this.setView('master'));
       if (k === 'm' || k === 'M') return go(() => this.addMarker(this.eng.pos()));
       if (k === 'Delete' || k === 'Backspace') return go(() => this.deleteSel());
+      if (k === '[') return go(() => this.rangeEdgeAtPlayhead('s'));
+      if (k === ']') return go(() => this.rangeEdgeAtPlayhead('e'));
       if (k === 'Tab') return go(() => this.cycleView(e.shiftKey ? -1 : 1));
       if (k === 'q' || k === 'Q') return go(() => this.quickIdea());
       if (k === 'u' || k === 'U') return go(() => TUNER.open());
@@ -1077,7 +1196,7 @@ const A = {
       if (k === '-' || k === '_') return go(() => this.zoom(1 / 1.5));
       if (k === 'f' || k === 'F') return go(() => ARR.fit());
       if (k === '?') return go(() => this.helpKeys());
-      if (k === 'Escape') { this.ui.sel = new Set(); this.ui.range = null; ARR.dirty = true; this.inspector(); }
+      if (k === 'Escape') { this.ui.sel = new Set(); this.ui.range = null; ARR.dirty = true; if (window.DECK) DECK.dirty = true; this.inspector(); }
     });
   },
 };
