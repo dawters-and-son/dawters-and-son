@@ -40,7 +40,7 @@ jobs:
           git clone -q https://github.com/planetbeing/libdmg-hfsplus.git hfs && git -C hfs checkout -q 7ac55ec
           cmake -S hfs -B hfs/build -DCMAKE_BUILD_TYPE=Release >/dev/null && make -s -C hfs/build hfsplus
           git clone -q https://github.com/fanquake/libdmg-hfsplus.git dmg && git -C dmg checkout -q 1cc791e
-          cmake -S dmg -B dmg/build -DCMAKE_BUILD_TYPE=Release >/dev/null && make -s -C dmg/build dmg
+          cmake -S dmg -B dmg/build -DCMAKE_BUILD_TYPE=Release >/dev/null && make -s -C dmg/build dmg-bin
           echo "HFSPLUS=$RUNNER_TEMP/t/hfs/build/hfs/hfsplus" >> "$GITHUB_ENV"
           echo "DMGTOOL=$RUNNER_TEMP/t/dmg/build/dmg/dmg" >> "$GITHUB_ENV"
       - name: Mac signing tool (rcodesign)
