@@ -150,6 +150,21 @@ td:first-child { font-weight: 700; white-space: nowrap; }
 .give div { border-left: 4px solid var(--red); padding: 4px 0 4px 14px; }
 .give b { font: 600 18px var(--head); text-transform: uppercase; display: block; }
 @media (max-width: 860px) { .gift { grid-template-columns: 1fr; } }
+/* the suite */
+.suite { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 34px; align-items: center; }
+.suite .apps { display: flex; flex-direction: column; gap: 14px; }
+.sapp { border: 2px solid var(--ink); border-radius: 14px; background: var(--card); padding: 18px 20px; display: flex; flex-direction: column; gap: 6px; }
+.sapp.edk { background: #9E1B22; color: #F4EEE1; border-color: #9E1B22; box-shadow: 0 0 0 4px var(--paper), 0 0 0 6px #9E1B22; }
+.sapp .k { font: 500 12px var(--head); letter-spacing: 2.5px; text-transform: uppercase; opacity: .75; }
+.sapp h3 { font: 400 40px/1 var(--script); display: flex; align-items: center; gap: 10px; }
+.sapp h3 img { width: 36px; height: 36px; }
+.sapp h3 small { font: 400 12px var(--mono); letter-spacing: .35em; text-transform: uppercase; color: #F0C46A; align-self: flex-end; margin-bottom: 4px; }
+.sapp p { font-size: 15px; }
+.sapp .btn { align-self: flex-start; margin-top: 6px; }
+.sapp.edk .btn { border-color: #F4EEE1; color: #F4EEE1; }
+.sapp.edk .btn:hover { background: rgba(0,0,0,.2); }
+.suite .tv img { aspect-ratio: 16 / 10; }
+@media (max-width: 900px) { .suite { grid-template-columns: 1fr; } }
 /* faq */
 .faq { display: grid; gap: 10px; max-width: 900px; }
 details { border: 2px solid var(--ink); border-radius: 12px; background: var(--card); padding: 0 18px; }
@@ -172,7 +187,7 @@ footer p { color: #B6AC98; max-width: 60ch; }
   <div class="wrap">
     <a class="brand" href="#top"><img src="img/icon.svg" alt="" width="40" height="40"><b>DAWters &amp; Son</b></a>
     <nav class="nav" aria-label="Sections">
-      <a href="#features">Features</a><a href="#screens">Screens</a><a href="#compare">Compare</a><a href="#gift">The gift</a><a href="#faq">FAQ</a><a class="cta" href="#get">Download free</a>
+      <a href="#features">Features</a><a href="#screens">Screens</a><a href="#compare">Compare</a><a href="#suite">The suite</a><a href="#gift">The gift</a><a href="#faq">FAQ</a><a class="cta" href="#get">Download free</a>
     </nav>
   </div>
 </header>
@@ -272,6 +287,19 @@ footer p { color: #B6AC98; max-width: 60ch; }
     </div>
   </section>
 
+  <section class="s" id="suite">
+    <div class="wrap">
+      <div class="title-card"><div class="eyebrow">The suite</div><h2>Now with a beat studio.</h2><p>DAWters &amp; Son has a sibling. Make the beat in Esperanza’s Drum Kit, then record vocals over it here. Same sound engine, same look, same promise: free, open source, no tracking.</p></div>
+      <div class="suite">
+        <div class="apps">
+          <div class="sapp"><div class="k">Recording · mixing · mastering</div><h3>DAWters &amp; Son</h3><p>The multitrack studio you’re looking at: unlimited tracks, the console, 24 effects, mastering and the tuner.</p></div>
+          <div class="sapp edk"><div class="k">Beats · patterns · arranging</div><h3><img src="img/edk-icon.svg" alt="" width="36" height="36">Esperanza’s <small>Drum Kit</small></h3><p>A pattern-based beat studio with a channel rack, a playlist with song sections, five drum kits, 808s and synths, and a Feel dial that makes programmed beats play like a person. On Android and in the browser.</p><a class="btn" href="https://esperanza-s-drum-kit.github.io/Esperanza-s-Drum-Kit/" rel="noopener">Meet Esperanza’s Drum Kit</a></div>
+        </div>
+        <div class="tv"><img src="img/edk-studio.webp" width="1600" height="1000" alt="Esperanza’s Drum Kit: a channel rack of programmed steps above a playlist arranged into Intro, Verse, Chorus and Outro sections." loading="lazy"></div>
+      </div>
+    </div>
+  </section>
+
   <section class="s" id="gift">
     <div class="wrap">
       <div class="title-card"><div class="eyebrow">Why it’s free</div><h2>It’s a gift.</h2></div>
@@ -304,6 +332,7 @@ footer p { color: #B6AC98; max-width: 60ch; }
         <details><summary>Does it load VST or AU plugins?</summary><p>Not yet. It ships with 24 built-in effects and three instruments. Plugin hosting is on the roadmap for the desktop versions.</p></details>
         <details><summary>Why does my computer warn me when I install it?</summary><p>Mac and Windows show a warning for apps that aren’t signed with a paid developer certificate. The app is safe and the code is public. Each download card shows the two clicks that get past the warning.</p></details>
         <details><summary>Will it run on my phone or tablet?</summary><p>Yes, on Android 7 or newer. The Deck view has big controls built for touch: swipe a track right for its settings and left for its effects. There’s no iPhone or iPad version yet.</p></details>
+        <details><summary>Is there a beat maker?</summary><p>Yes: Esperanza’s Drum Kit, the suite’s pattern-based beat studio. It’s free and open source too, and shares this app’s sound engine. Its website is linked in the suite section above.</p></details>
         <details><summary>Does MIDI work?</summary><p>Yes, in the desktop versions and in Chrome or Edge. On Android, use the on-screen keyboard and drum pads for now.</p></details>
         <details><summary>How do I get help or report a bug?</summary><p>Open an issue on the project’s code page with what you did, what you expected and what happened. Include your platform and version (see Help › About).</p></details>
       </div>
