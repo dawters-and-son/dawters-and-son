@@ -1,13 +1,13 @@
-DAWters and Son 2.3.3 for Windows (64-bit)
+DAWters and Son 2.3.4 for Windows (64-bit)
 
 INSTALL
-1. Run DAWters-and-Son-2.3.3-Setup-x64.exe. It installs for your Windows account only,
+1. Run DAWters-and-Son-2.3.4-Setup-x64.exe. It installs for your Windows account only,
    so no administrator password is needed.
 2. Windows SmartScreen may say "Windows protected your PC", because the installer
    isn't signed with a paid code-signing certificate. Click "More info", then "Run anyway".
 3. Pick the shortcuts you want (desktop icon, D&S Tuner) and finish.
 
-Prefer no installer? Unzip DAWters-and-Son-2.3.3-win-x64-portable.zip anywhere and run
+Prefer no installer? Unzip DAWters-and-Son-2.3.4-win-x64-portable.zip anywhere and run
 "DAWters and Son.exe". (The portable copy doesn't register .dawters files.)
 
 WHAT YOU GET

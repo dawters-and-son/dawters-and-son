@@ -603,7 +603,7 @@ body[data-view="deck"] #top .tgroup, body[data-view="deck"] #top .lcd, body[data
 .in-opt { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 3px; margin-right: 6px; }
 .in-opt label { width: 100%; margin-bottom: 3px; font: 500 10px var(--head); letter-spacing: .8px; color: var(--muted); text-transform: uppercase; }
 .in-note { font: italic 400 13px var(--mono); color: var(--muted); }
-.in-pads { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.in-pads { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
 .in-pads .pad { min-height: 54px; border: var(--b) solid var(--line); border-radius: 9px; background: var(--surface); font: 600 12px var(--head); letter-spacing: .5px; text-transform: uppercase; cursor: pointer; touch-action: manipulation; }
 .in-pads .pad.on { background: var(--text); color: var(--bg); }
 .inst-btn { background: var(--text) !important; color: var(--bg); justify-content: center; margin-bottom: 4px; }

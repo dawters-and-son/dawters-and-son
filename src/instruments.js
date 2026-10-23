@@ -4,8 +4,8 @@
 'use strict';
 const INST = {};
 INST.TYPES = { synth: 'Synth', drums: 'Drums', sampler: 'Sampler' };
-INST.PADS = [36, 38, 39, 42, 46, 45, 50, 56];
-INST.PAD_NAMES = ['Kick', 'Snare', 'Clap', 'Closed hat', 'Open hat', 'Low tom', 'High tom', 'Perc'];
+INST.PADS = [36, 38, 39, 42, 46, 45, 50, 56, 49, 51]; // General MIDI notes; crash (49) and ride (51) added in 2.3.4
+INST.PAD_NAMES = ['Kick', 'Snare', 'Clap', 'Closed hat', 'Open hat', 'Low tom', 'High tom', 'Perc', 'Crash', 'Ride'];
 INST.NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 INST.noteName = (n) => INST.NOTE_NAMES[((n % 12) + 12) % 12] + (Math.floor(n / 12) - 1);
 
@@ -33,12 +33,14 @@ INST.SYNTH_PRESETS = [
 ];
 
 INST.KITS = [
-  ['KIT 01 BOOM', [[0, 0.9, 0, 0.35], [0, 0.35, -3, 0.5], [0, 0.4, -4, 0.5], [0, 0.4, -9, 0.3], [0, 0.6, -10, 0.3], [0, 0.5, -5, 0.3], [0, 0.4, -5, 0.3], [0, 0.4, -9, 0.5]]],
-  ['KIT 02 TIGHT', [[2, 0.35, 0, 0.6], [2, 0.18, -2, 0.8], [1, 0.25, -4, 0.6], [2, 0.25, -8, 0.6], [2, 0.35, -10, 0.6], [3, 0.3, -5, 0.4], [3, 0.25, -5, 0.4], [3, 0.25, -9, 0.6]]],
-  ['KIT 03 DUST', [[-2, 0.55, -1, 0.2], [-3, 0.3, -3, 0.25], [-2, 0.45, -5, 0.3], [-4, 0.3, -11, 0.2], [-4, 0.5, -12, 0.2], [-3, 0.5, -6, 0.2], [-3, 0.4, -6, 0.2], [-5, 0.5, -10, 0.2]]],
-  ['KIT 04 ELECTRO', [[5, 0.45, 0, 0.9], [5, 0.25, -2, 1], [4, 0.3, -3, 0.9], [5, 0.18, -8, 0.9], [5, 0.3, -9, 0.9], [7, 0.3, -5, 0.8], [7, 0.25, -5, 0.8], [6, 0.3, -8, 0.9]]],
+  ['KIT 01 BOOM', [[0, 0.9, 0, 0.35], [0, 0.35, -3, 0.5], [0, 0.4, -4, 0.5], [0, 0.4, -9, 0.3], [0, 0.6, -10, 0.3], [0, 0.5, -5, 0.3], [0, 0.4, -5, 0.3], [0, 0.4, -9, 0.5], [0, 1.6, -9, 0.5], [0, 1.3, -12, 0.5]]],
+  ['KIT 02 TIGHT', [[2, 0.35, 0, 0.6], [2, 0.18, -2, 0.8], [1, 0.25, -4, 0.6], [2, 0.25, -8, 0.6], [2, 0.35, -10, 0.6], [3, 0.3, -5, 0.4], [3, 0.25, -5, 0.4], [3, 0.25, -9, 0.6], [1, 1.1, -9, 0.65], [1, 0.9, -11, 0.6]]],
+  ['KIT 03 DUST', [[-2, 0.55, -1, 0.2], [-3, 0.3, -3, 0.25], [-2, 0.45, -5, 0.3], [-4, 0.3, -11, 0.2], [-4, 0.5, -12, 0.2], [-3, 0.5, -6, 0.2], [-3, 0.4, -6, 0.2], [-5, 0.5, -10, 0.2], [-2, 1.9, -11, 0.3], [-2, 1.5, -13, 0.3]]],
+  ['KIT 04 ELECTRO', [[5, 0.45, 0, 0.9], [5, 0.25, -2, 1], [4, 0.3, -3, 0.9], [5, 0.18, -8, 0.9], [5, 0.3, -9, 0.9], [7, 0.3, -5, 0.8], [7, 0.25, -5, 0.8], [6, 0.3, -8, 0.9], [3, 1.3, -9, 0.85], [3, 1.0, -11, 0.8]]],
 ];
-INST.kitPads = (k) => INST.KITS[k][1].map(([tune, decay, level, tone], i) => ({ tune, decay, level, tone, pan: [0, 0, 0, 0.25, 0.25, -0.35, 0.35, -0.2][i] }));
+INST.kitPads = (k) => INST.KITS[k][1].map(([tune, decay, level, tone], i) => ({ tune, decay, level, tone, pan: [0, 0, 0, 0.25, 0.25, -0.35, 0.35, -0.2, -0.4, 0.45][i] }));
+// songs saved before a pad existed get that pad from their kit, leaving the pads they have alone
+INST.fillPads = (p) => { const d = INST.kitPads(p.kit || 0); p.pads = p.pads || []; for (let i = p.pads.length; i < d.length; i++) p.pads[i] = d[i]; return p; };
 INST.drumsDefault = () => ({ kit: 0, vol: -2, pads: INST.kitPads(0) });
 INST.samplerDefault = () => ({ root: 60, tune: 0, track: true, oneshot: false, loop: false, start: 0, lstart: 0, a: 0.002, d: 0.3, s: 1, r: 0.3, cut: 20000, res: 0, vsens: 0.6, vol: -3 });
 INST.make = (type) => ({ type, p: type === 'drums' ? INST.drumsDefault() : type === 'sampler' ? INST.samplerDefault() : Object.assign(INST.synthDefault(), INST.SYNTH_PRESETS[0][1]), preset: type === 'synth' ? 0 : -1, sample: null, padSamples: {} });

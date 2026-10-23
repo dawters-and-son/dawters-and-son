@@ -125,10 +125,11 @@ class Synth {
 }
 
 // ---------------- drum synth ----------------
-const PADS = [36, 38, 39, 42, 46, 45, 50, 56];
+const PADS = [36, 38, 39, 42, 46, 45, 50, 56, 49, 51]; // GM: …, crash 1, ride 1
 class Hit {
   constructor() { this.on = false; }
 }
+const CRASH_R = [1, 1.342, 1.758, 2.153, 2.597, 3.011, 3.533, 4.168], RIDE_R = [1, 1.483, 1.932, 2.546, 2.63, 3.897, 4.81, 5.92];
 class Drums {
   constructor(fs, p, samples) { this.fs = fs; this.p = p; this.hits = Array.from({ length: 24 }, () => new Hit()); this.samples = samples || {}; this.seed = 777; }
   rnd() { this.seed = (this.seed * 1103515245 + 12345) & 0x7fffffff; return this.seed / 0x3fffffff - 1; }
@@ -144,6 +145,8 @@ class Drums {
     if (pad === 2) h.bp1.set(1100 * tune, 1.6, fs);
     if (pad === 3 || pad === 4) { h.bp1.set(7500 * tune, 0.9, fs); h.bp2.set(10500 * tune, 1.2, fs); }
     if (pad === 7) h.bp1.set(845 * tune, 3, fs);
+    if (pad === 8) { h.bp1.set(3200 * tune, 0.7, fs); h.bp2.set(7000 * tune * (0.8 + 0.4 * pp.tone), 0.5, fs); }
+    if (pad === 9) { h.bp1.set(5200 * tune, 0.7, fs); h.bp2.set(3100 * tune, 5, fs); }
   }
   off() { /* drums are one-shots */ }
   allOff(hard) { if (hard) for (const h of this.hits) h.on = false; }
@@ -209,6 +212,25 @@ class Drums {
             h.ph += 540 * h.tune * dt; h.ph2 += 800 * h.tune * dt;
             const x = ((h.ph % 1) < 0.5 ? 1 : -1) + ((h.ph2 % 1) < 0.5 ? 1 : -1);
             y = h.bp1.run(x * 0.5, 2) * (Math.exp(-t / 0.02) * 0.5 + 0.5 * Math.exp(-t / (h.dec * 0.4))) * 1.5; break;
+          }
+          case 8: case 9: { // cymbals: eight inharmonic square partials plus noise, high-passed
+            const crash = h.pad === 8, base = (crash ? 420 : 560) * h.tune;
+            const R = crash ? CRASH_R : RIDE_R;
+            if (!h.cph) h.cph = new Float64Array(8);
+            let m = 0;
+            for (let k = 0; k < 8; k++) { h.cph[k] += base * R[k] * dt; if (h.cph[k] >= 1) h.cph[k] -= 1; m += h.cph[k] < 0.5 ? 1 : -1; }
+            if (crash) { // crash: noisy wash with a fast swell and a long tail
+              m = m / 8 * 0.8 + this.rnd() * (0.45 + 0.5 * h.tone);
+              const env = (t < 0.002 ? t / 0.002 : 1) * (0.55 * Math.exp(-t / (h.dec * 0.18)) + 0.45 * Math.exp(-t / (h.dec * 0.55)));
+              y = (h.bp1.run(m, 1) * 0.9 + h.bp2.run(m, 2) * 0.6) * env * 1.1;
+            } else { // ride: stick tick, a ringing bell band and a shimmering body
+              m = m / 8 + this.rnd() * 0.12 * (0.5 + h.tone);
+              const body = h.bp1.run(m, 1) * Math.exp(-t / (h.dec * 0.5)) * 0.7;
+              const bell = h.bp2.run(m, 2) * Math.exp(-t / (h.dec * 0.35)) * (0.6 + 0.8 * h.tone);
+              const tick = t < 0.006 ? this.rnd() * (1 - t / 0.006) * 0.5 : 0;
+              y = body + bell * 0.8 + tick;
+            }
+            break;
           }
         }
         const g = h.lvl * h.vel * gain * 0.6;

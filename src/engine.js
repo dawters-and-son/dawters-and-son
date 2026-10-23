@@ -271,11 +271,16 @@ class Engine {
     if (this.recording) await this.stopRecording();
     if (!this.playing) { this.position = 0; this.emit('locate', 0); this.emit('state'); return; }
     this.position = this.pos();
+    // stopping ends any GrooveMatrix launches (the pattern view's Loop button uses them too), so the next
+    // play follows the arrangement again; with Rec to arrangement on, what played is written in first
+    const mxOn = Object.keys(this.matrix.active).length || Object.keys(this.matrix.queue).length;
+    if (mxOn) { if (this.onMatrixRec) for (const id in this.matrix.active) this.onMatrixRec(id, this.matrix.active[id], this.matrix.active[id].until !== undefined ? Math.min(this.matrix.active[id].until, this.position) : this.position); this.matrix = { active: {}, queue: {} }; }
     this.playing = false;
     this.killSources();
     if (this.position < 0) this.position = 0;
     this.graph.sync(this.proj);
     this.emit('state');
+    if (mxOn) this.emit('matrix');
   }
   killSources() {
     const now = this.ctx.currentTime;
@@ -388,11 +393,11 @@ class Engine {
   // note events [songTime, on(1)/off(0), note, vel] with ons in [a,b); offs may fall later (queued in the worklet)
   noteEvents(t, a, b, cap) {
     const out = [], P = this.proj, beat = this.beat(), mx = this.matrix.active[t.id];
-    const play = (c) => {
+    const play = (c, wa = a, wb = b) => {
       if (c.mute) return;
       const pat = P.patterns[c.pat]; if (!pat || !pat.notes.length) return;
       const per = pat.len * beat, base = c.start - c.off, cEnd = c.start + c.len;
-      const lo = Math.max(a, c.start), hi = Math.min(b, cEnd); if (hi <= lo) return;
+      const lo = Math.max(wa, c.start), hi = Math.min(wb, cEnd); if (hi <= lo) return;
       const vs = U.clamp(c.gain === undefined ? 1 : c.gain, 0, 2);
       for (let k = Math.floor((lo - base) / per) - 1; base + k * per < hi; k++) {
         for (const nt of pat.notes) {
@@ -405,8 +410,15 @@ class Engine {
         }
       }
     };
-    if (mx) { if (mx.pat && P.patterns[mx.pat]) play({ pat: mx.pat, start: mx.from, len: (mx.until || Infinity) - mx.from, off: 0, gain: 1 }); }
-    else for (const c of t.clips) if (c.pat) play(c);
+    // a GrooveMatrix launch takes over the track only from its launch bar until it stops; the timeline
+    // clips play everywhere else, so a pattern placed earlier in the song still sounds where it sits
+    if (mx && mx.pat && P.patterns[mx.pat]) play({ pat: mx.pat, start: mx.from, len: (mx.until === undefined ? Infinity : mx.until) - mx.from, off: 0, gain: 1 });
+    const mFrom = mx ? mx.from : Infinity, mUntil = mx && mx.until !== undefined ? mx.until : Infinity;
+    for (const c of t.clips) {
+      if (!c.pat) continue;
+      if (a < mFrom) play(c, a, Math.min(b, mFrom));
+      if (b > mUntil) play(c, Math.max(a, mUntil), b);
+    }
     return out;
   }
   instEventsAll(s, e, cap, sr) { // for offline renders: frames relative to s

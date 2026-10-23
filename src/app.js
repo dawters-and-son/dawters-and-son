@@ -983,8 +983,8 @@ const A = {
     K.dialog('About', [
       K.h('div', { style: 'display:flex;align-items:center;gap:16px' }, K.h('div', { html: K.LOGO, style: 'width:84px;height:84px;flex:none' }),
         K.h('div', { style: 'flex:1' }, K.h('div', { style: 'font:400 46px/1 var(--script)' }, 'DAWters & Son'), K.h('div', { style: 'font:500 12px var(--head);letter-spacing:3px;text-transform:uppercase;color:var(--muted)' }, '★ Good to the last take ★')),
-        K.h('div', { class: 'burst' }, 'New 2.3.3')),
-      K.h('div', { class: 'note' }, 'Version 2.3.3 — DAWters and Son is now free software, released under the GNU General Public License, version 3 or later. 2.3.2: recording over a track silences its old audio while you record. 2.3.1: hear any effect live with Audition (test sounds, your own track, the song or the mic). 2.3: a Master tab with 16 mastering recipes, level-matched A/B and a spectrum view; a built-in Tuner; noise removal from a noise sample; and a studio set of effects: true-peak limiter, multiband, FET / opto / bus compressors, saturator, tube EQ, de-esser, transient shaper, doubler, imager, tape echo and new reverb rooms. Everything is plain signal processing — no AI.'),
+        K.h('div', { class: 'burst' }, 'New 2.3.4')),
+      K.h('div', { class: 'note' }, 'Version 2.3.4 — the drum synth has a crash and a ride cymbal, and a pattern placed on the timeline now plays where it sits even after you used Loop. 2.3.3: DAWters and Son is free software, released under the GNU General Public License, version 3 or later. 2.3.2: recording over a track silences its old audio while you record. 2.3.1: hear any effect live with Audition (test sounds, your own track, the song or the mic). 2.3: a Master tab with 16 mastering recipes, level-matched A/B and a spectrum view; a built-in Tuner; noise removal from a noise sample; and a studio set of effects: true-peak limiter, multiband, FET / opto / bus compressors, saturator, tube EQ, de-esser, transient shaper, doubler, imager, tape echo and new reverb rooms. Everything is plain signal processing — no AI.'),
       K.h('div', { class: 'note' }, 'Still here from 2.2: the On the Air look, loudness-target exports, bus bounces and bus stems, ffmpeg exports (MP3, AAC, Ogg, Opus, FLAC), instruments, piano roll, GrooveMatrix and MIDI.'),
       K.h('div', { class: 'note' }, 'A multitrack studio in the spirit of the classic home-recording DAWs: unlimited tracks, a knob-per-function console with four mixbuses, a master with true-peak limiting, loudness and VU metering. Works without an internet connection; your current song autosaves on this device.'),
       K.h('div', { class: 'note' }, 'Fonts: Yesteryear, Oswald and Courier Prime — SIL Open Font License 1.1. Encoding: FFmpeg (LGPL/GPL), LAME, libvorbis, Opus.'),
@@ -1032,7 +1032,7 @@ const A = {
           e.preventDefault();
           if (k === 'z') { PAT.oct = Math.max(0, (PAT.oct || 4) - 1); return PAT.render(); }
           if (k === 'x') { PAT.oct = Math.min(8, (PAT.oct || 4) + 1); return PAT.render(); }
-          const n = PAT.isDrum() ? INST.PADS[ix % 8] : ((PAT.oct || 4) + 1) * 12 + ix;
+          const n = PAT.isDrum() ? INST.PADS[ix % INST.PADS.length] : ((PAT.oct || 4) + 1) * 12 + ix;
           this.eng.liveNote(PAT.track().id, true, n, PAT.defVel); PAT.noteFlash(n, true);
           const upk = (ev) => { if (ev.key.toLowerCase() !== k.toLowerCase()) return; this.eng.liveNote(PAT.track().id, false, n, 0); PAT.noteFlash(n, false); document.removeEventListener('keyup', upk); };
           document.addEventListener('keyup', upk); return;

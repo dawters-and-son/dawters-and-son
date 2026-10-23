@@ -50,7 +50,7 @@ M.migrate = (p) => {
   const OLD = ['#FF2B00', '#0038FF', '#00A651', '#FFB800', '#7A00FF', '#FF00A0', '#00B5B5', '#8C5A00', '#B3D400', '#FF7A00', '#00205B', '#8A8A8A'], OB = ['#7A00FF', '#00B5B5', '#FF7A00', '#0038FF'];
   p.buses.forEach((b, i) => { if (OB.includes(b.color)) b.color = M.BUS_COLORS[i]; });
   p.tracks.forEach((t) => { const k = OLD.indexOf(t.color); if (k >= 0) t.color = M.COLORS[k]; t.clips.forEach((c) => { const j = OLD.indexOf(c.color); if (j >= 0) c.color = M.COLORS[j]; }); });
-  p.tracks.forEach((t) => { t.kind = t.kind || 'audio'; if (t.kind === 'inst' && !t.inst) t.inst = INST.make('synth'); });
+  p.tracks.forEach((t) => { t.kind = t.kind || 'audio'; if (t.kind === 'inst' && !t.inst) t.inst = INST.make('synth'); if (t.inst && t.inst.type === 'drums') INST.fillPads(t.inst.p); });
   return p;
 };
 M.newPattern = (trackId, name, beats, kind) => ({ id: U.uid('p'), track: trackId, name: name || 'Pattern', len: beats || 16, notes: [], drums: kind === 'drums' });
