@@ -180,6 +180,17 @@ td:first-child { font-weight: 700; white-space: nowrap; }
 .eleo-band { display: flex; gap: 22px; flex-wrap: wrap; margin-top: 20px; font: 400 13px var(--mono); color: var(--muted); }
 .eleo-band b { font: 600 26px/1 var(--head); color: var(--ink); display: block; }
 @media (max-width: 900px) { .eleo-mod { grid-template-columns: 1fr; } }
+/* Esperanza's Drum Kit module (same shape as the Eleosynth module, can-red accent) */
+.edk-mod { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 34px; align-items: center; }
+.edk-mod .tv { background: #110D0A; }
+.edk-pts { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.edk-pts li { border-left: 4px solid #9E1B22; padding: 2px 0 2px 14px; font-size: 15px; }
+.edk-pts b { font: 600 18px var(--head); text-transform: uppercase; display: block; letter-spacing: .3px; }
+.edk-mod .btns { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+.edk-band { display: flex; gap: 22px; flex-wrap: wrap; margin-top: 20px; font: 400 13px var(--mono); color: var(--muted); }
+.edk-band b { font: 600 26px/1 var(--head); color: var(--ink); display: block; }
+.edk-motto { font: italic 400 15px var(--mono); color: var(--muted); }
+@media (max-width: 900px) { .edk-mod { grid-template-columns: 1fr; } }
 /* faq */
 .faq { display: grid; gap: 10px; max-width: 900px; }
 details { border: 2px solid var(--ink); border-radius: 12px; background: var(--card); padding: 0 18px; }
@@ -202,7 +213,7 @@ footer p { color: #B6AC98; max-width: 60ch; }
   <div class="wrap">
     <a class="brand" href="#top"><img src="img/icon.svg" alt="" width="40" height="40"><b>DAWters &amp; Son</b></a>
     <nav class="nav" aria-label="Sections">
-      <a href="#features">Features</a><a href="#screens">Screens</a><a href="#compare">Compare</a><a href="#suite">The suite</a><a href="#eleosynth">Eleosynth</a><a href="#gift">The gift</a><a href="#faq">FAQ</a><a class="cta" href="#get">Download free</a>
+      <a href="#features">Features</a><a href="#screens">Screens</a><a href="#compare">Compare</a><a href="#suite">The suite</a><a href="#edk">Drum Kit</a><a href="#eleosynth">Eleosynth</a><a href="#gift">The gift</a><a href="#faq">FAQ</a><a class="cta" href="#get">Download free</a>
     </nav>
   </div>
 </header>
@@ -312,6 +323,26 @@ footer p { color: #B6AC98; max-width: 60ch; }
           <div class="sapp eleo"><div class="k">Synth · keys · guitar pedals</div><h3><img class="sq" src="img/eleosynth-icon.png" alt="" width="36" height="36">Eleosynth <small>Synth &amp; pedals</small></h3><p>A wavetable, tine-piano and granular synthesizer you can plug your guitar into: 39 effects, a full pedalboard, a tuner, and guitar-to-synth tracking.</p><a class="btn" href="#eleosynth">See Eleosynth</a></div>
         </div>
         <div class="tv"><img src="img/edk-studio.webp" width="1600" height="1000" alt="Esperanza’s Drum Kit: a channel rack of programmed steps above a playlist arranged into Intro, Verse, Chorus and Outro sections." loading="lazy"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="s" id="edk">
+    <div class="wrap">
+      <div class="title-card"><div class="eyebrow">The beat studio</div><h2>Meet Esperanza’s Drum Kit.</h2><p>A pattern-based beat studio with a channel rack, a playlist and a Feel dial. Make the beat there, record vocals over it here.</p><p class="edk-motto">The best part of breaking down.</p></div>
+      <div class="edk-mod">
+        <div>
+          <div class="tv"><img src="img/edk-feel.webp" width="1600" height="1000" alt="Esperanza’s Drum Kit: the channel rack and playlist with song sections, and the Feel panel open showing presets from Machine to Drunk with Amount, Push and Dynamics dials." loading="lazy"></div>
+          <div class="edk-band"><span><b>5</b>drum kits</span><span><b>3</b>tuned 808s</span><span><b>14</b>synths</span><span><b>8</b>Feel presets</span><span><b>$0</b>forever</span></div>
+        </div>
+        <div>
+          <ul class="edk-pts">
+            <li><b>Program it, arrange it</b>A channel rack of steps, patterns on a playlist, and song sections from intro to outro that you can loop, duplicate or export on their own.</li>
+            <li><b>A Feel dial that plays like a person</b>Turn from Machine to Drunk. Kicks stay tight, snares lay back, hats breathe, and the same take plays the same every loop.</li>
+            <li><b>Made to work with this studio</b>Export the beat as a WAV or MP3, or record your own sounds into it, then drop the beat onto a track here and record over it.</li>
+          </ul>
+          <div class="btns"><a class="btn red" href="https://esperanza-s-drum-kit.github.io/Esperanza-s-Drum-Kit/" rel="noopener">Visit the Drum Kit site</a><a class="btn" href="https://esperanza-s-drum-kit.github.io/Esperanza-s-Drum-Kit/app/" rel="noopener">Play it in your browser</a></div>
+        </div>
       </div>
     </div>
   </section>
