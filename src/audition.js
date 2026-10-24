@@ -110,7 +110,7 @@ const AUD = {
     try { if (c.mic) c.mic.src.disconnect(c.src); } catch (e) { /* */ }
     [c.src, c.fx.output, c.wet, c.dry, c.out, c.an].forEach((n) => { try { n.disconnect(); } catch (e) { /* */ } });
     try { c.fx.dispose(); } catch (e) { /* */ }
-    const E = A.eng; if (c.mic && E.input && !E.recording && !A.proj.tracks.some((t) => t.arm || t.mon) && !(typeof TUNER !== 'undefined' && TUNER.st)) E.closeInput();
+    const E = A.eng; if (c.mic && E.input && !E.recording && !A.settings.capListen && !A.proj.tracks.some((t) => t.arm || t.mon) && !(typeof TUNER !== 'undefined' && TUNER.st)) E.closeInput();
   },
   // the strip shown at the top of every effect panel
   bar(o, f) {

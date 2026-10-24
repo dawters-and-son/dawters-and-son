@@ -16,7 +16,8 @@ M.defCh = (kind) => ({
 });
 
 M.newTrack = (i, opts = {}) => ({
-  id: U.uid('t'), kind: opts.kind || 'audio', inst: opts.inst || null, name: opts.name || (opts.kind === 'inst' ? INST.TYPES[opts.inst.type] + ' ' + (i + 1) : 'Track ' + (i + 1)), color: M.COLORS[i % M.COLORS.length],
+  id: U.uid('t'), kind: opts.kind || 'audio', inst: opts.inst || null, beat: opts.kind === 'beat' ? (opts.beat || {}) : undefined,
+  name: opts.name || (opts.kind === 'inst' ? INST.TYPES[opts.inst.type] + ' ' + (i + 1) : opts.kind === 'beat' ? 'Beat ' + (i + 1) : 'Track ' + (i + 1)), color: M.COLORS[i % M.COLORS.length],
   stereo: opts.stereo !== undefined ? opts.stereo : false, input: opts.input || '1',
   arm: false, mon: false, mute: false, solo: false, height: 92,
   ch: M.defCh('track'), fader: 1, pan: 0,

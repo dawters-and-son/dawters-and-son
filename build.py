@@ -12,10 +12,20 @@ def font(m):
     return 'url(data:font/woff2;base64,' + base64.b64encode(data).decode() + ')'
 css = re.sub(r'url\(FONT:([\w-]+)\)', font, css)
 worklet = S('worklet.js') + '\n' + S('inst-worklet.js') + '\n' + S('fx-worklet.js')
-js = '"use strict";\nconst WORKLET_SRC = ' + json.dumps(worklet) + ';\nconst FFW_SRC = ' + json.dumps(S('ff/ffmpeg-worker.js')) + ';\n' + 'const LICENSE_TXT = ' + json.dumps(open(os.path.join(ROOT, 'LICENSE'), encoding='utf-8').read()) + ';\nconst SOURCE_URL = ' + json.dumps(SOURCE_URL) + ';\n' + '\n'.join(S(f) for f in ['util.js', 'instruments.js', 'model.js', 'fx.js', 'engine.js', 'kit.js', 'arrange.js', 'console.js', 'deck.js', 'pattern.js', 'matrix.js', 'encode.js', 'master.js', 'denoise.js', 'tuner.js', 'audition.js', 'app.js'])
+js = '"use strict";\nconst WORKLET_SRC = ' + json.dumps(worklet) + ';\nconst FFW_SRC = ' + json.dumps(S('ff/ffmpeg-worker.js')) + ';\n' + 'const LICENSE_TXT = ' + json.dumps(open(os.path.join(ROOT, 'LICENSE'), encoding='utf-8').read()) + ';\nconst SOURCE_URL = ' + json.dumps(SOURCE_URL) + ';\n' + '\n'.join(S(f) for f in ['util.js', 'instruments.js', 'model.js', 'fx.js', 'suite.js', 'engine.js', 'kit.js', 'arrange.js', 'console.js', 'deck.js', 'pattern.js', 'matrix.js', 'encode.js', 'master.js', 'denoise.js', 'tuner.js', 'audition.js', 'app.js'])
 js = js.replace("'use strict';", '')
 icon = 'data:image/svg+xml;base64,' + base64.b64encode(open(os.path.join(ROOT, 'src', 'icon.svg'), 'rb').read()).decode()
 html = S('index.html').replace('/*CSS*/', css).replace('/*JS*/', js.replace('</script', '<\\/script')).replace('ICON_DATAURL', icon)
+# the suite: Eleosynth and Esperanza's Drum Kit, built by their own repositories (tools/update_suite.sh) and
+# carried here gzip-compressed + base64 so DAWters can open them as plugins with no network and no extra files
+import gzip
+suite = ''
+for kind, fn in [('eleo', 'eleosynth.html'), ('edk', 'edk.html')]:
+    pth = os.path.join(ROOT, 'vendor', 'suite', fn)
+    if os.path.exists(pth):
+        data = base64.b64encode(gzip.compress(open(pth, 'rb').read(), 9, mtime=0)).decode()
+        suite += '<script type="text/plain" id="suite-' + kind + '">' + data + '</script>'
+head, tail = html.rsplit('</body>', 1); html = head + suite + '</body>' + tail
 os.makedirs(os.path.join(ROOT, 'dist'), exist_ok=True)
 out = os.path.join(ROOT, 'dist', 'dawters.html')
 open(out, 'w', encoding='utf-8').write(html)

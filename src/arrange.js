@@ -163,15 +163,17 @@ const ARR = {
       const mini = (cls, label, on, title, fn) => K.h('button', { class: 'mini ' + cls + (on ? ' on' : ''), title, 'aria-pressed': on ? 'true' : 'false', onclick: fn }, label);
       const inp = K.select([['1', 'In 1'], ['2', 'In 2'], ['1+2', 'In 1+2']], t.input, (v) => { A.commit('Track input'); t.input = v; t.stereo = v === '1+2'; A.changed({ graph: true, heads: true, console: true }); A.eng.updateMonitors(); });
       inp.className = 'inp'; inp.title = 'Recording input';
-      const isI = t.kind === 'inst';
-      const instBtn = isI ? K.h('button', { class: 'mini wide', title: 'Instrument', onclick: () => INSTUI.open(t) }, INST.TYPES[t.inst.type].toUpperCase()) : null;
-      const patBtn = isI ? K.h('button', { class: 'mini wide', title: 'Edit patterns', onclick: () => { A.ui.patTrack = t.id; A.setView('pattern'); } }, 'PAT') : null;
+      const isB = t.kind === 'beat', isI = t.kind === 'inst' || isB, eleo = t.kind === 'inst' && t.inst.type === 'eleo';
+      const instBtn = isB ? K.h('button', { class: 'mini wide', title: "Open Esperanza's Drum Kit", onclick: () => SUITE.open(t) }, 'EDK ▸')
+        : isI ? K.h('button', { class: 'mini wide', title: 'Instrument', onclick: () => INSTUI.open(t) }, eleo ? 'ELEO ▸' : INST.TYPES[t.inst.type].toUpperCase()) : null;
+      const patBtn = isB ? K.h('button', { class: 'mini wide', title: 'Put a pattern, section or the song on the timeline', onclick: (e) => { const i = SUITE.inst.get(t.id); if (i && i.api) SUITE.placeMenu(i, e.clientX, e.clientY); else K.toast('Still starting…'); } }, '+ CLIP')
+        : isI ? K.h('button', { class: 'mini wide', title: 'Edit patterns', onclick: () => { A.ui.patTrack = t.id; A.setView('pattern'); } }, 'PAT') : null;
       const meter = K.h('canvas', { class: 'hm' }); this.meters.push({ id: t.id, cv: meter, st: K.meterState() });
       const body = K.h('div', { class: 'body' },
         K.h('div', { class: 'row' }, K.h('span', { class: 'num' }, String(i + 1)), nm),
         K.h('div', { class: 'row' },
-          mini('arm', '●', t.arm, 'Arm for recording', () => A.toggleTrack(t, 'arm')),
-          isI ? null : mini('mon', 'IN', t.mon, 'Listen to input through this track', () => A.toggleTrack(t, 'mon')),
+          isB ? null : mini('arm', '●', t.arm, 'Arm for recording', () => A.toggleTrack(t, 'arm')),
+          isI && !eleo ? null : mini('mon', 'IN', t.mon, eleo ? 'Play your guitar into Eleosynth (pedals, Guitar → Synth)' : 'Listen to input through this track', () => A.toggleTrack(t, 'mon')),
           mini('mute', 'M', t.mute, 'Mute', () => A.toggleTrack(t, 'mute')),
           mini('solo', 'S', t.solo, 'Solo', () => A.toggleTrack(t, 'solo')),
           mini('fx wide', 'FX' + (t.fx.length ? ' ' + t.fx.length : ''), t.fx.some((f) => f.on), 'Effects on this track', () => { A.selectTrack(t.id); DECK.fxSheet(t); }),
@@ -340,11 +342,11 @@ const ARR = {
         if (want !== cur) { cur.clips.splice(cur.clips.indexOf(it.c), 1); want.clips.push(it.c); }
       }
     } else if (d.kind === 'trimL') {
-      const s0 = d.snap0, minS = c.pat ? 0 : s0.start - s0.off, end = s0.start + s0.len;
+      const s0 = d.snap0, minS = c.pat || c.beat ? 0 : s0.start - s0.off, end = s0.start + s0.len;
       const ns = U.clamp(this.snap(s0.start + dt, e), Math.max(0, minS), end - 0.01);
       c.start = ns; c.off = s0.off + (ns - s0.start); c.len = end - ns; c.fi = Math.min(c.fi, c.len); c.fo = Math.min(c.fo, c.len - c.fi);
     } else if (d.kind === 'trimR') {
-      const s0 = d.snap0, b = A.eng.buffers.get(c.buf), maxLen = c.pat ? 3600 : b ? b.ab.duration - s0.off : s0.len;
+      const s0 = d.snap0, b = A.eng.buffers.get(c.buf), maxLen = c.pat || c.beat ? 3600 : b ? b.ab.duration - s0.off : s0.len;
       const ne = this.snap(s0.start + s0.len + dt, e);
       c.len = U.clamp(ne - s0.start, 0.01, maxLen); c.fo = Math.min(c.fo, c.len); c.fi = Math.min(c.fi, c.len - c.fo);
     } else if (d.kind === 'fadein') {
@@ -399,6 +401,7 @@ const ARR = {
     const h = this.hit(e.offsetX, e.offsetY);
     if (h.zone === 'envpt') { A.commit('Delete envelope point'); h.track.env[h.track.show].pts.splice(h.pi, 1); A.changed({ graph: true }); this.dirty = true; return; }
     if (h.clip && h.clip.pat) { A.ui.patTrack = h.track.id; A.ui.pat = h.clip.pat; A.setView('pattern'); return; }
+    if (h.clip && h.clip.beat) { SUITE.open(h.track); return; }
     if (h.clip) { A.ui.sel = new Set([h.clip.id]); A.clipDialog(h.clip); return; }
     if (h.zone === 'below') A.addTrack();
   },
@@ -543,6 +546,7 @@ const ARR = {
     const b = A.eng.buffers.get(c.buf);
     const wy = top + HD + 2, wh = h - HD - 4, mid = Math.round(wy + wh / 2);
     if (c.pat && wh > 6) ARR.drawNotes(g, c, x1, x2, wy, wh, this.pps, T, (t) => this.tToX(t), (x) => this.xToT(x), this.vw);
+    if (c.beat && wh > 6) ARR.drawBeat(g, tr, c, wy, wh, this.pps, T, (t) => this.tToX(t), (x) => this.xToT(x), this.vw);
     if (b && wh > 6) {
       const sr = b.ab.sampleRate, spp = sr / this.pps;
       let lvl = 0; while (lvl + 1 < U.LEVELS.length && U.LEVELS[lvl + 1] <= spp) lvl++;
@@ -581,6 +585,21 @@ const ARR = {
     ARR.rrect(g, x1 + g.lineWidth / 2, top + g.lineWidth / 2, w - g.lineWidth, h - g.lineWidth, 5); g.stroke();
   },
   // mini piano roll for pattern clips, with a rule at every loop point
+  // a beat clip: Esperanza's Drum Kit's hits, one row per channel, repeating like the clip plays
+  drawBeat(g, tr, c, wy, wh, pps, T, tToX, xToT, vw) {
+    const H = SUITE.hits(tr, c.src); if (!H || !H.rows) return;
+    const sd = 60 / A.proj.bpm / 4, base = c.start - (c.off || 0), rh = Math.max(1, wh / H.rows), w = Math.max(1.5, sd * pps * 0.72), L = H.len * sd;
+    const t0 = Math.max(c.start, xToT(-20)), t1 = Math.min(c.start + c.len, xToT(vw + 20));
+    g.fillStyle = T.wave || T.text;
+    for (let rep = Math.floor((t0 - base) / L); base + rep * L < t1; rep++) {
+      for (const [k, r, v] of H.hits) {
+        const t = base + rep * L + k * sd; if (t < c.start - 1e-6 || t >= c.start + c.len - 1e-6 || t < t0 - sd || t > t1) continue;
+        g.globalAlpha = 0.35 + 0.65 * Math.min(1, v);
+        g.fillRect(tToX(t), wy + r * rh + (rh > 4 ? 1 : 0), w, Math.max(1, rh - (rh > 4 ? 2 : 0)));
+      }
+    }
+    g.globalAlpha = 1;
+  },
   drawNotes(g, c, x1, x2, wy, wh, pps, T, tToX, xToT, vw) {
     const p = A.proj.patterns[c.pat]; if (!p) return;
     const beat = A.eng.beat(), per = p.len * beat, base = c.start - c.off;

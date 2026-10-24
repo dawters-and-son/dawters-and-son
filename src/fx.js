@@ -16,6 +16,11 @@ const mixer = (ctx) => {
 };
 
 FX.types = {
+  eleopedals: {
+    name: 'Eleosynth Pedalboard', short: 'Pedals', suite: 'eleo', params: [],
+    about: "Eleosynth's guitar pedalboard as an insert: record your guitar clean, hear it through the pedals, and change the pedals any time afterwards (re-amping). Takes are always recorded dry. When the tone is right, Track → Freeze prints the pedals to a new audio track.",
+    create(ctx, p, env) { return SUITE.fxNode(ctx, env || {}); },
+  },
   reverb: {
     name: 'Reverb', short: 'Reverb',
     params: [
@@ -585,7 +590,7 @@ Object.assign(FX.types, {
 });
 FX.types.limit.hidden = true; // superseded by the True-Peak Limiter; kept so older songs still load
 FX.order = ['comp', 'dist', 'reverb', 'delay', 'peq', 'filter', 'gate', 'limit', 'chorus', 'phaser', 'tremolo', 'drive', 'geq', 'width'];
-FX.GROUPS = [['Dynamics', ['comp', 'fet', 'opto', 'buscomp', 'mband', 'tplim', 'deess', 'trans', 'gate']], ['Drive', ['satur', 'dist', 'drive']], ['Space', ['reverb', 'delay']], ['Tone', ['peq', 'tubeeq', 'geq', 'filter']], ['Stereo & modulation', ['imager', 'doubler', 'width', 'chorus', 'phaser', 'tremolo']]];
+FX.GROUPS = [['Dynamics', ['comp', 'fet', 'opto', 'buscomp', 'mband', 'tplim', 'deess', 'trans', 'gate']], ['Drive', ['satur', 'dist', 'drive']], ['Space', ['reverb', 'delay']], ['Tone', ['peq', 'tubeeq', 'geq', 'filter']], ['Stereo & modulation', ['imager', 'doubler', 'width', 'chorus', 'phaser', 'tremolo']], ['The suite', ['eleopedals']]];
 FX.order.push('fet', 'opto', 'buscomp', 'mband', 'tplim', 'satur', 'deess', 'trans', 'doubler', 'imager', 'tubeeq');
 FX.defaults = (type) => { const o = {}; for (const s of FX.types[type].params) o[s.k] = s.def; return o; };
 FX.register = (key, def) => { FX.types[key] = def; if (!FX.order.includes(key)) FX.order.push(key); };

@@ -3,7 +3,7 @@
 // DAWters and Son — built-in instruments: parameter specs, presets, kits
 'use strict';
 const INST = {};
-INST.TYPES = { synth: 'Synth', drums: 'Drums', sampler: 'Sampler' };
+INST.TYPES = { synth: 'Synth', drums: 'Drums', sampler: 'Sampler', eleo: 'Eleosynth' };
 INST.PADS = [36, 38, 39, 42, 46, 45, 50, 56, 49, 51]; // General MIDI notes; crash (49) and ride (51) added in 2.3.4
 INST.PAD_NAMES = ['Kick', 'Snare', 'Clap', 'Closed hat', 'Open hat', 'Low tom', 'High tom', 'Perc', 'Crash', 'Ride'];
 INST.NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -43,7 +43,7 @@ INST.kitPads = (k) => INST.KITS[k][1].map(([tune, decay, level, tone], i) => ({ 
 INST.fillPads = (p) => { const d = INST.kitPads(p.kit || 0); p.pads = p.pads || []; for (let i = p.pads.length; i < d.length; i++) p.pads[i] = d[i]; return p; };
 INST.drumsDefault = () => ({ kit: 0, vol: -2, pads: INST.kitPads(0) });
 INST.samplerDefault = () => ({ root: 60, tune: 0, track: true, oneshot: false, loop: false, start: 0, lstart: 0, a: 0.002, d: 0.3, s: 1, r: 0.3, cut: 20000, res: 0, vsens: 0.6, vol: -3 });
-INST.make = (type) => ({ type, p: type === 'drums' ? INST.drumsDefault() : type === 'sampler' ? INST.samplerDefault() : Object.assign(INST.synthDefault(), INST.SYNTH_PRESETS[0][1]), preset: type === 'synth' ? 0 : -1, sample: null, padSamples: {} });
+INST.make = (type) => type === 'eleo' ? { type, p: {}, state: null, padSamples: {} } : ({ type, p: type === 'drums' ? INST.drumsDefault() : type === 'sampler' ? INST.samplerDefault() : Object.assign(INST.synthDefault(), INST.SYNTH_PRESETS[0][1]), preset: type === 'synth' ? 0 : -1, sample: null, padSamples: {} });
 
 // ---- UI specs: [key, label, spec] ----
 const NOTE_FMT = (v) => INST.noteName(Math.round(v));

@@ -69,7 +69,10 @@ const A = {
     const small = window.matchMedia('(pointer: coarse)').matches || innerWidth < 900;
     this.setView(localStorage.getItem('dawters.view') || (small ? 'deck' : 'tracks'));
     // the tuner can be opened on its own: index.html#tuner (and the Android "D&S Tuner" icon)
-    if (location.hash === '#tuner') setTimeout(() => TUNER.open(true), 300); else setTimeout(() => this.firstRun(), 1200);
+    // Listen for Capture: the browser only opens the input after a click or key, so wait for the first one
+    if (this.settings.capListen) { const go = () => { window.removeEventListener('pointerdown', go, true); window.removeEventListener('keydown', go, true); this.eng.openInput().catch(() => {}); }; window.addEventListener('pointerdown', go, true); window.addEventListener('keydown', go, true); }
+    this.listenSuite();
+    if (location.hash === '#tuner') setTimeout(() => TUNER.open(true), 300); else if (location.hash !== '#receive') setTimeout(() => this.firstRun(), 1200);
     window.addEventListener('hashchange', () => { if (location.hash === '#tuner') TUNER.open(true); });
     this.keys();
     this.dropZone();
@@ -126,7 +129,7 @@ const A = {
     this.save();
   },
   save: null, // set below (debounced)
-  async saveNow() { try { await U.idb.put('kv', 'project', JSON.stringify(this.proj)); } catch (e) { console.warn('autosave failed', e); } },
+  async saveNow() { try { SUITE.flush(); await U.idb.put('kv', 'project', JSON.stringify(this.proj)); } catch (e) { console.warn('autosave failed', e); } },
   status(msg) { if (this.el) this.el.status.textContent = msg; },
   // ---------- chrome ----------
   buildChrome() {
@@ -148,6 +151,7 @@ const A = {
     el.loop = tog('loop', 'Loop', 'Loop (L)', () => this.toggleLoop());
     el.punch = tog('punch hide-sm', 'Punch', 'Punch in/out (P) — Shift-drag on the ruler to set', () => { this.commit('Punch'); this.proj.punch.on = !this.proj.punch.on; this.changed({ transport: true }); });
     el.click = tog('click', 'Click', 'Metronome (C)', () => { this.settings.click = !this.settings.click; this.saveSettings(); this.syncTransport(); });
+    el.cap = tog('cap', 'Capture', 'Capture what you just played, even if you weren’t recording (Shift+C)', () => this.capture());
     el.count = tog('count hide-sm', 'Count', 'One bar count-in before recording', () => { this.settings.countIn = !this.settings.countIn; this.saveSettings(); this.syncTransport(); });
     el.lcd = h('div', { class: 'lcd', title: 'Click to swap bars / time', role: 'timer' }, h('div', { class: 'big' }, '001.1.000'), h('div', { class: 'small' }, '00:00.000'));
     el.lcd.addEventListener('click', () => { this.ui.lcdBars = !this.ui.lcdBars; });
@@ -166,7 +170,7 @@ const A = {
     el.seg.append(el.vDeck, el.vTracks, el.vMatrix, el.vPattern, el.vConsole, el.vMaster);
     top.append(brand, menus,
       h('div', { class: 'tgroup' }, el.home, el.rew, el.stop, el.play, el.rec, el.ffw),
-      h('div', { class: 'tgroup' }, el.loop, el.punch, el.click, el.count),
+      h('div', { class: 'tgroup' }, el.loop, el.punch, el.click, el.count, el.cap),
       el.lcd,
       h('div', { class: 'field' }, h('label', null, 'BPM'), el.bpm, h('span', { class: 'hide-sm', style: 'display:contents' }, el.sig)),
       h('div', { class: 'spacer' }),
@@ -279,11 +283,99 @@ const A = {
   },
   // instrument tracks start with an empty pattern so there is something to write into
   addInstTrack(type) {
+    if (type === 'eleo' && !SUITE.has('eleo')) { K.toast('Eleosynth is not included in this build'); return null; }
     const t = this.addTrack({ kind: 'inst', inst: INST.make(type), stereo: true, input: '1+2' });
     this.newPatternFor(t, true);
     this.ui.patTrack = t.id;
+    if (type === 'eleo') SUITE.show(t.id);
     return t;
   },
+  // a Beat track: Esperanza's Drum Kit, its song placed at the playhead, its editor open
+  addBeatTrack() {
+    if (!SUITE.has('edk')) return K.toast("Esperanza's Drum Kit is not included in this build");
+    const t = this.addTrack({ kind: 'beat', stereo: true, input: '1+2' });
+    SUITE.show(t.id);
+    return t;
+  },
+  // ---------- the suite: ideas sent over from Eleosynth and Esperanza's Drum Kit ----------
+  // On the web, those apps open DAWters at #receive and post the idea once it says it is ready. Only the
+  // suite's own sites (and this one) are listened to. In the desktop and Android builds they save a
+  // .dawsuite.json file instead, which File → Import takes (as it does .edk projects and Eleosynth sounds).
+  suiteOrigin(o) { return o === location.origin || /^https:\/\/(eleosynth|esperanza-s-drum-kit|dawters-and-son)\.github\.io$/.test(o) || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(o); },
+  listenSuite() {
+    window.addEventListener('message', (e) => {
+      const d = e.data; if (!d || d.type !== 'dawters-send' || !this.suiteOrigin(e.origin)) return;
+      this.receiveSuite(d).then((ok) => { try { e.source.postMessage({ type: 'dawters-got', ok: !!ok }, e.origin); } catch (er) { /* sender closed */ } });
+    });
+    const hello = () => {
+      if (location.hash !== '#receive') return;
+      history.replaceState(null, '', location.pathname + location.search);
+      if (window.opener) try { window.opener.postMessage('dawters-ready', '*'); } catch (e) { /* no opener */ }
+    };
+    hello(); window.addEventListener('hashchange', hello);
+  },
+  async receiveSuite(d) {
+    const P = this.proj, nm = String(d.name || '').slice(0, 40);
+    const place = (t) => { const used = new Set(P.tracks.map((x) => x.color)); t.color = M.COLORS.find((c) => !used.has(c)) || t.color; const i = this.sel() ? P.tracks.indexOf(this.sel()) + 1 : P.tracks.length; P.tracks.splice(i, 0, t); this.ui.selTrack = t.id; };
+    try {
+      if (d.kind === 'eleo') {
+        if (!SUITE.has('eleo')) { K.toast('Eleosynth is not included in this build'); return false; }
+        this.commit('From Eleosynth');
+        const t = M.newTrack(P.tracks.length, { kind: 'inst', inst: INST.make('eleo'), stereo: true, input: '1+2', name: nm || 'Eleosynth' });
+        t.inst.state = d.state || null; place(t);
+        this.newPatternFor(t, true); this.ui.patTrack = t.id;
+        this.changed({ graph: true, heads: true, console: true, clips: true });
+        K.toast('Eleosynth sound “' + (nm || 'Eleosynth') + '” is on a new track — play it, or write notes in its pattern', 4500);
+      } else if (d.kind === 'edk') {
+        if (!SUITE.has('edk')) { K.toast("Esperanza's Drum Kit is not included in this build"); return false; }
+        if (!d.state || !d.state.proj) throw new Error('empty');
+        this.commit('From the Drum Kit');
+        const empty = !P.tracks.some((t) => t.clips.length);
+        if (empty && d.state.proj.bpm) this.eng.setBpm(U.clamp(+d.state.proj.bpm, 20, 300));
+        const t = M.newTrack(P.tracks.length, { kind: 'beat', beat: { state: d.state }, stereo: true, input: '1+2', name: nm || d.state.proj.name || 'Beat' });
+        place(t);
+        this.changed({ graph: true, heads: true, console: true, clips: true });
+        K.toast('“' + t.name + '” is on a Beat track — its song is placed at the playhead. Double-click it to edit.', 4500);
+      } else if (d.kind === 'audio') {
+        const a = d.audio; if (!a || !a.ch || !a.ch.length) throw new Error('empty');
+        const chs = a.ch.map((b) => U.b64f32(b));
+        const ab = this.eng.makeBuffer(chs, a.sr || this.eng.sr);
+        this.commit('From the suite');
+        const t = M.newTrack(P.tracks.length, { name: nm || 'Take', stereo: chs.length > 1, input: chs.length > 1 ? '1+2' : '1' });
+        const id = this.eng.addBuffer(ab, t.name);
+        t.clips.push({ id: U.uid('c'), buf: id, start: this.eng.pos(), off: 0, len: ab.duration, gain: 1, fi: 0, fo: 0, name: t.name });
+        place(t);
+        this.changed({ graph: true, heads: true, console: true, clips: true });
+        K.toast('“' + t.name + '” is on a new track at the playhead');
+      } else return false;
+      this.status('Received ' + (nm || d.kind));
+      return true;
+    } catch (e) { K.toast('That idea could not be brought in'); return false; }
+  },
+  // File → Import for suite files: .dawsuite.json (sent from the suite), .edk projects, .eleosynth.json sounds
+  async importSuiteFile(f) {
+    const low = f.name.toLowerCase();
+    try {
+      if (low.endsWith('.edk')) {
+        let z = await U.unzip(f);
+        if (!z['project.json']) { const inner = Object.keys(z).find((n) => /\.edk$/i.test(n)); if (inner) z = await U.unzip(z[inner]); }
+        const proj = JSON.parse(new TextDecoder().decode(z['project.json']));
+        const samples = {};
+        for (const name in z) {
+          const m = /^samples\/(.+)\.wav$/.exec(name); if (!m) continue;
+          const w = U.decodeWav(z[name]); if (!w) continue;
+          const label = z['samples/' + m[1] + '.txt'];
+          samples[m[1]] = { sr: w.sr, name: label ? new TextDecoder().decode(label) : m[1], ch: w.ch.map((c) => U.f32b64(c)) };
+        }
+        return this.receiveSuite({ kind: 'edk', name: proj.name && proj.name !== 'Untitled' ? proj.name : f.name.replace(/\.edk$/i, ''), state: { app: 'edk', v: 1, proj, samples } });
+      }
+      const j = JSON.parse(await f.text());
+      if (j.type === 'dawters-send') return this.receiveSuite(j);
+      if (j.app === 'Eleosynth' && j.p) return this.receiveSuite({ kind: 'eleo', name: j.name, state: { app: 'Eleosynth', v: 1, sound: j } });
+      throw new Error('unknown');
+    } catch (e) { K.toast('Could not read ' + f.name, 3500); return false; }
+  },
+  isSuiteFile(f) { return /\.(edk|dawsuite\.json|eleosynth\.json)$/i.test(f.name); },
   newPatternFor(t, silent) {
     if (!silent) this.commit('New pattern');
     const n = Object.values(this.proj.patterns).filter((p) => p.track === t.id).length + 1, bpb = this.proj.sig[0];
@@ -303,7 +395,10 @@ const A = {
   addTrackMenu(x, y) {
     K.menu([{ head: 'Add a track' },
       { label: 'Audio (mono)', act: () => this.addTrack() }, { label: 'Audio (stereo)', act: () => this.addTrack({ stereo: true, input: '1+2' }) },
-      { label: 'Synth', act: () => this.addInstTrack('synth') }, { label: 'Drums', act: () => this.addInstTrack('drums') }, { label: 'Sampler', act: () => this.addInstTrack('sampler') }], x, y);
+      { label: 'Synth', act: () => this.addInstTrack('synth') }, { label: 'Drums', act: () => this.addInstTrack('drums') }, { label: 'Sampler', act: () => this.addInstTrack('sampler') },
+      { head: 'The suite' },
+      { label: 'Eleosynth (synth + guitar pedals)', disabled: !SUITE.has('eleo'), act: () => this.addInstTrack('eleo') },
+      { label: "Beat · Esperanza's Drum Kit", disabled: !SUITE.has('edk'), act: () => this.addBeatTrack() }], x, y);
   },
   // MIDI recorded while transport ran -> a new pattern + clip per armed instrument track
   applyMidiTake(m) {
@@ -321,7 +416,7 @@ const A = {
       }
       for (const [n, o] of open) notes.push({ t: (o.t - start) / beat, d: Math.max(0.05, (m.end - o.t) / beat), n, v: o.v });
       if (!notes.length) continue;
-      if (!made) this.commit('Record MIDI');
+      if (!made) this.commit(m.label || 'Record MIDI');
       const bars = Math.max(1, Math.ceil(Math.max(m.end - start, ...notes.map((x) => (x.t + x.d) * beat)) / bar - 1e-6));
       const p = M.newPattern(t.id, 'Take ' + (Object.values(P.patterns).filter((x) => x.track === t.id).length + 1), bars * bpb, t.inst.type);
       p.notes = notes.map((x) => ({ t: Math.max(0, x.t), d: x.d, n: x.n, v: Math.max(0.05, Math.min(1, x.v)) }));
@@ -329,7 +424,8 @@ const A = {
       t.clips.push({ id: U.uid('c'), pat: p.id, start, off: 0, len: bars * bar, gain: 1, fi: 0, fo: 0, name: p.name });
       this.ui.pat = p.id; this.ui.patTrack = t.id; made++;
     }
-    if (made) { this.changed({ clips: true }); PAT.render(); this.status('Recorded notes into ' + made + ' pattern' + (made === 1 ? '' : 's')); }
+    if (made) { this.changed({ clips: true }); PAT.render(); if (!m.quiet) this.status('Recorded notes into ' + made + ' pattern' + (made === 1 ? '' : 's')); }
+    return made;
   },
   async deleteTrack(t) {
     if (t.clips.length && !(await K.confirm('Delete track', 'Delete “' + t.name + '” and its ' + t.clips.length + ' clip(s)? You can undo this.', 'Delete'))) return;
@@ -454,6 +550,9 @@ const A = {
       { head: c.name || 'Clip' },
       c.pat ? { label: 'Edit pattern', act: () => { this.ui.patTrack = t.id; this.ui.pat = c.pat; this.setView('pattern'); } } : null,
       c.pat ? { label: 'Make unique (own copy of the pattern)', act: () => { this.commit('Make unique'); const p = this.proj.patterns[c.pat], n = JSON.parse(JSON.stringify(p)); n.id = U.uid('p'); n.name = p.name + ' (unique)'; this.proj.patterns[n.id] = n; c.pat = n.id; c.name = n.name; this.changed({ clips: true }); } } : null,
+      c.beat ? { label: "Edit in Esperanza's Drum Kit", act: () => SUITE.open(t) } : null,
+      c.beat ? { label: 'Plays: ' + this.beatSrcName(t, c) + ' — change…', act: () => this.beatSrcMenu(t, c, x, y) } : null,
+      c.beat ? { label: 'Fit clip to whole loops', act: () => { const L = this.beatLen(t, c); if (!L) return; this.commit('Fit clip'); c.len = Math.max(1, Math.round(c.len / L)) * L; this.changed({ clips: true }); } } : null,
       c.pat ? { label: 'Fit clip to whole loops', act: () => { this.commit('Fit clip'); const per = this.proj.patterns[c.pat].len * this.eng.beat(); c.len = Math.max(1, Math.round(c.len / per)) * per; this.changed({ clips: true }); } } : null,
       { label: 'Split here', key: 'S', act: () => { this.commit('Split'); this.splitClip(t, c, ARR.snap(at)); this.changed({ clips: true }); } },
       { label: 'Split at playhead', act: () => this.split() },
@@ -472,6 +571,15 @@ const A = {
       { label: 'Clip properties…', act: () => this.clipDialog(c) },
       c.buf ? { label: 'Export clip as WAV', act: () => this.exportClip(c) } : null,
     ], x, y);
+  },
+  // ---------- beat clips (Esperanza's Drum Kit) ----------
+  beatLen(t, c) { const i = SUITE.info(t); if (!i) return 0; const sd = 60 / this.proj.bpm / 4; if (c.src === 'song') return i.songLen * sd; const p = i.patterns.find((x) => x.id === c.src); return p ? p.len * sd : 0; },
+  beatSrcName(t, c) { const i = SUITE.info(t); if (c.src === 'song') return 'the song'; const p = i && i.patterns.find((x) => x.id === c.src); return p ? p.name : 'a pattern'; },
+  beatSrcMenu(t, c, x, y) {
+    const i = SUITE.info(t); if (!i) return K.toast('Still starting…');
+    const set = (src, name) => { this.commit('Beat clip'); c.src = src; c.off = 0; c.name = name; SUITE.hitCache.clear(); this.changed({ clips: true }); };
+    K.menu([{ head: 'This clip plays' }, { label: 'The whole song', check: c.src === 'song', act: () => set('song', i.name || 'Song') },
+      ...i.patterns.map((p) => ({ label: p.name, check: c.src === p.id, act: () => set(p.id, p.name) }))], x, y);
   },
   clipDialog(c) {
     const h = K.h;
@@ -640,7 +748,11 @@ const A = {
   },
   // ---------- import ----------
   async importAudio(files) {
-    files = files || (await U.pickFile('audio/*,.wav,.mp3,.ogg,.flac,.m4a,.aif,.aiff', true));
+    files = files || (await U.pickFile('audio/*,.wav,.mp3,.ogg,.flac,.m4a,.aif,.aiff,.edk,.json', true));
+    if (!files.length) return;
+    const suite = files.filter((f) => this.isSuiteFile(f));
+    for (const f of suite) await this.importSuiteFile(f);
+    files = files.filter((f) => !this.isSuiteFile(f));
     if (!files.length) return;
     const P = this.proj, at = this.eng.pos();
     let ti = Math.max(0, P.tracks.indexOf(this.sel()));
@@ -686,6 +798,7 @@ const A = {
   async renameSong() { const v = await K.prompt('Song name', 'Name', this.proj.name); if (v) { this.commit('Rename song'); this.proj.name = v; this.refreshAll(); this.save(); } },
   async saveProject() {
     this.status('Packing song…');
+    SUITE.flush();
     const used = M.bufRefs(this.proj);
     const files = [{ name: 'project.json', data: new TextEncoder().encode(JSON.stringify(this.proj, null, 1)) }];
     for (const id of used) {
@@ -841,6 +954,7 @@ const A = {
   openFx(o, k) {
     const f = o.fx[k]; if (!f) return;
     this.closeFx();
+    if (FX.types[f.type].suite) { SUITE.show(f.id); return; } // Eleosynth Pedalboard: its own editor
     const def = FX.types[f.type], h = K.h, G = () => this.eng.graph.refreshFx(o), title = def.name + ' · ' + this.fxOwnerName(o);
     const kids = def.params.map((s) => {
       if (s.opts) {
@@ -879,7 +993,8 @@ const A = {
   // grouped "add an effect" items
   fxItems(o, k, replace) {
     const items = [];
-    for (const [g, keys] of FX.GROUPS) {
+    for (const [g, all] of FX.GROUPS) {
+      const keys = all.filter((key) => !FX.types[key].suite || SUITE.has(FX.types[key].suite)); if (!keys.length) continue;
       items.push({ head: g });
       for (const key of keys) items.push({ label: FX.types[key].name, act: () => { this.commit('Insert FX'); const nf = { id: U.uid('f'), type: key, on: true, p: FX.defaults(key) }; if (replace) o.fx[k] = nf; else o.fx.push(nf); this.changed({ graph: true, console: true }); DECK.render(); ARR.renderHeads(); this.openFx(o, replace ? k : o.fx.length - 1); } });
     }
@@ -888,6 +1003,87 @@ const A = {
   closeFx() { if (this.fxWin) { this.fxWin.close(); this.fxWin = null; } },
   setInput(t, v) { this.commit('Track input'); t.input = v; t.stereo = v === '1+2'; this.changed({ graph: true, heads: true, console: true }); this.eng.updateMonitors(); },
   // ---------- quick idea: one tap grabs a free track and records ----------
+  // ---------- capture: nothing was recording, but DAWters was listening ----------
+  // Notes from any instrument (keyboard, MIDI, Eleosynth's own keys) and the open input are kept for the last
+  // minute or so. Capture pulls the last phrase — everything since a silence of a few seconds — into the song.
+  async capture() {
+    const E = this.eng, P = this.proj, GAP = 6;
+    const out = [];
+    // ---- notes ----
+    const ev = E.capNotes(GAP);
+    if (ev) {
+      const live = ev.filter((e) => e[1]).every((e) => E.songAt(e[0]) !== null);
+      const at = E.playing ? null : E.position, c0 = ev[0][0];
+      const notes = ev.map((e) => [live ? E.songAt(e[0]) : at + (e[0] - c0), e[1], e[2], e[3], e[4]]);
+      const ons = notes.filter((x) => x[1]);
+      const recStart = Math.max(0, Math.min(...ons.map((x) => x[0])));
+      const end = Math.max(...notes.map((x) => x[0])) + 0.05;
+      const tracks = [...new Set(ev.map((e) => e[4]))].filter((id) => P.tracks.some((t) => t.id === id));
+      const made = this.applyMidiTake({ notes, recStart, end, tracks, label: 'Capture', quiet: true });
+      if (made) { out.push(made + ' pattern' + (made === 1 ? '' : 's')); E.cap.splice(E.cap.length - ev.length, ev.length); }
+    }
+    // ---- audio from the open input ----
+    if (E.input) {
+      const g = await E.grabAudio();
+      const seg = g && this.capSegment(g.ch, E.sr, GAP);
+      if (seg) {
+        const P2 = this.proj;
+        let t = P2.tracks.find((x) => x.kind === 'audio' && x.arm) || P2.tracks.find((x) => x.kind === 'audio' && x.mon);
+        if (!out.length) this.commit('Capture');
+        if (!t) { t = M.newTrack(P2.tracks.length, { name: 'Capture ' + (P2.tracks.filter((x) => /^Capture \d+$/.test(x.name)).length + 1), stereo: E.input.nch > 1, input: E.input.nch > 1 ? '1+2' : '1' }); const used = new Set(P2.tracks.map((x) => x.color)); t.color = M.COLORS.find((c) => !used.has(c)) || t.color; P2.tracks.push(t); }
+        const chs = E.chanFor(t).map((c) => g.ch[c] || g.ch[0]);
+        const ab = E.makeBuffer(chs.map((c) => c.slice(seg[0], seg[1])), E.sr);
+        const ct = g.c0 + seg[0] / E.sr - g.lat, sp = E.songAt(ct);
+        const start = sp !== null ? Math.max(0, sp) : E.position;
+        const id = E.addBuffer(ab, t.name + ' capture');
+        t.clips.push({ id: U.uid('c'), buf: id, start, off: 0, len: ab.duration, gain: 1, fi: 0.005, fo: 0.02, name: t.name + ' capture' });
+        this.ui.selTrack = t.id;
+        this.changed({ graph: true, heads: true, clips: true, console: true });
+        out.push(U.fmtTime ? U.fmtTime(ab.duration) + ' of audio' : ab.duration.toFixed(1) + ' s of audio');
+      }
+    }
+    if (!out.length) {
+      K.toast(E.input ? 'Nothing to capture yet — play something, then press Capture.' : 'Nothing to capture yet. Notes are always caught; for audio, turn on Track → Listen for Capture (or arm/monitor a track).', 4500);
+      return;
+    }
+    K.toast('Captured ' + out.join(' and '));
+    this.status('Captured ' + out.join(' and '));
+  },
+  // the last loud stretch of a capture buffer: [start, end) samples, or null if it's all quiet
+  capSegment(ch, sr, gap) {
+    const W = Math.round(sr * 0.05), n = ch[0].length, nw = Math.floor(n / W); if (nw < 2) return null;
+    const thr = U.undb(-48), loud = new Uint8Array(nw);
+    for (let w = 0; w < nw; w++) { let m = 0; for (const c of ch) { const d = c; for (let i = w * W, e = i + W; i < e; i++) { const a = Math.abs(d[i]); if (a > m) m = a; } } loud[w] = m > thr ? 1 : 0; }
+    let last = nw - 1; while (last >= 0 && !loud[last]) last--;
+    if (last < 0) return null;
+    const gw = Math.round(gap / 0.05); let first = last, quiet = 0;
+    for (let w = last; w >= 0; w--) { if (loud[w]) { first = w; quiet = 0; } else if (++quiet > gw) break; }
+    const pad = Math.round(0.3 * sr);
+    return [Math.max(0, first * W - pad), Math.min(n, (last + 1) * W + pad)];
+  },
+  async setCaptureListen(on) {
+    this.settings.capListen = on; this.saveSettings();
+    if (on) { try { await this.eng.openInput(); K.toast('Listening — press Capture (Shift+C) to keep what you just played'); } catch (e) { K.toast(e.message || 'Could not open the input', 4000); } }
+    else if (!this.proj.tracks.some((t) => (t.arm && t.kind === 'audio') || t.mon)) this.eng.closeInput();
+  },
+  // ---------- freeze: print a track (instrument, beat or effects) to audio and mute the original ----------
+  async freeze(t) {
+    if (t.frozen) return this.unfreeze(t);
+    const P = this.proj, before = new Set(P.tracks.map((x) => x.id));
+    await this.bounce([t.id], 'mute');
+    const nt = P.tracks.find((x) => !before.has(x.id)); if (!nt) return;
+    nt.name = (t.name + ' (frozen)').slice(0, 40); nt.frozenFrom = t.id; nt.color = t.color; t.frozen = nt.id;
+    this.changed({ heads: true, console: true, clips: true });
+    K.toast('Froze “' + t.name + '” to audio — the original is muted. Unfreeze from the Track menu to edit it again.', 4500);
+  },
+  unfreeze(t) {
+    const P = this.proj; this.commit('Unfreeze');
+    P.tracks = P.tracks.filter((x) => !(x.id === t.frozen || x.frozenFrom === t.id));
+    t.mute = false; delete t.frozen;
+    this.ui.selTrack = t.id;
+    this.changed({ graph: true, heads: true, clips: true, console: true });
+    this.status('Unfroze ' + t.name);
+  },
   async quickIdea() {
     const E = this.eng;
     if (E.recording) return this.stop();
@@ -1010,6 +1206,7 @@ const A = {
       { label: 'Rename song…', act: () => this.renameSong() },
       { sep: true },
       { label: 'Import audio…', key: 'Ctrl+I', act: () => this.importAudio() },
+      { label: 'Import from the suite (.edk, Eleosynth sound, .dawsuite)…', act: async () => { const f = await U.pickFile('.edk,.json,application/json,application/zip', true); for (const x of f) await this.importSuiteFile(x); } },
       { label: 'Export mix / stems / buses…', key: 'Ctrl+E', act: () => this.exportDialog() },
       { label: 'Mastering', key: 'Shift+M', act: () => this.setView('master') },
       { sep: true },
@@ -1055,12 +1252,19 @@ const A = {
       { label: 'Add synth track', act: () => this.addInstTrack('synth') },
       { label: 'Add drum track', act: () => this.addInstTrack('drums') },
       { label: 'Add sampler track', act: () => this.addInstTrack('sampler') },
+      { label: 'Add Eleosynth track', disabled: !SUITE.has('eleo'), act: () => this.addInstTrack('eleo') },
+      { label: "Add Beat track (Esperanza's Drum Kit)", disabled: !SUITE.has('edk'), act: () => this.addBeatTrack() },
+      t && t.kind === 'beat' ? { label: "Open Esperanza's Drum Kit for “" + t.name + '”', act: () => SUITE.open(t) } : null,
       t && t.kind === 'inst' ? { label: 'Instrument for “' + t.name + '”…', act: () => INSTUI.open(t) } : null,
       { label: 'Panic — silence all instruments', act: () => this.eng.panicInst() },
       t ? { label: 'Duplicate “' + t.name + '”', act: () => this.duplicateTrack(t) } : null,
       t ? { label: 'Delete “' + t.name + '”', act: () => this.deleteTrack(t) } : null,
       { label: 'Bounce tracks…', key: 'B', act: () => this.bounceDialog() },
       { label: 'Quick idea (record on a free track)', key: 'Q', act: () => this.quickIdea() },
+      { label: 'Capture what I just played', key: 'Shift+C', act: () => this.capture() },
+      { label: 'Listen for Capture (keep the input open)', check: !!this.settings.capListen, act: () => this.setCaptureListen(!this.settings.capListen) },
+      t && (t.kind !== 'audio' || t.fx.some((f) => f.type === 'eleopedals')) && !t.frozenFrom ? { label: (t.frozen ? 'Unfreeze “' : 'Freeze “') + t.name + '”' + (t.frozen ? '' : ' to audio'), act: () => this.freeze(t) } : null,
+      t && t.frozenFrom ? { label: 'Unfreeze — back to the original', act: () => { const o = this.proj.tracks.find((x) => x.id === t.frozenFrom); if (o) this.unfreeze(o); } } : null,
       { sep: true },
       { label: 'Unmute all', act: () => { this.commit('Unmute all'); this.proj.tracks.forEach((x) => (x.mute = false)); this.eng.graph.mutes(); ARR.renderHeads(); CON.render(); } },
       { label: 'Unsolo all', act: () => { this.commit('Unsolo all'); this.proj.tracks.forEach((x) => (x.solo = false)); this.eng.graph.mutes(); ARR.renderHeads(); CON.render(); } },
@@ -1090,7 +1294,7 @@ const A = {
     ];
   },
   helpKeys() {
-    const rows = [['Space', 'Play / stop'], ['R', 'Record'], ['Home / End', 'Start / end of song'], ['← →', 'Nudge selected clips by the snap grid (or move a bar)'], [', .', 'Previous / next marker'], ['L', 'Loop on/off'], ['P', 'Punch on/off'], ['C', 'Metronome'], ['S', 'Split at playhead'], ['Del', 'Delete clips or range'],
+    const rows = [['Space', 'Play / stop'], ['R', 'Record'], ['Home / End', 'Start / end of song'], ['← →', 'Nudge selected clips by the snap grid (or move a bar)'], [', .', 'Previous / next marker'], ['L', 'Loop on/off'], ['P', 'Punch on/off'], ['C', 'Metronome'], ['Shift+C', 'Capture what you just played'], ['S', 'Split at playhead'], ['Del', 'Delete clips or range'],
       ['Ctrl+Z / Ctrl+Shift+Z', 'Undo / redo'], ['Ctrl+C X V D', 'Copy, cut, paste, duplicate'], ['Ctrl+A', 'Select all clips'], ['Ctrl+T', 'Add track'], ['Ctrl+S / O', 'Save / open song'], ['Ctrl+I / E', 'Import / export'], ['Tab', 'Tracks ⇄ Console'], ['+ − F', 'Zoom in, out, fit'], ['M', 'Add marker'],
       ['A W S E D F T G Y H U J K', 'Play notes in the Pattern view (Z / X: octave)'], ['Pattern view: click', 'Add a note (drag to set its length); double-click or right-click deletes'], ['Pattern view: ↑ ↓ ← →', 'Transpose / nudge selected notes'], ['Drag across a waveform', 'Select a range, as in Audacity (right-click it for range tools)'], ['Shift-click', 'Stretch the range (or make one from the playhead)'], ['[ / ]', 'Range start / end at the playhead (also while playing)'], ['Del · Ctrl+L', 'Delete the range and close the gap · silence it'], ['Drag a clip by its name bar', 'Move it (edges trim, top corners fade)'], ['Ctrl-drag a name bar', 'Copy the clip'], ['Alt while dragging', 'Ignore snap'], ['Drag the ruler top', 'Set the loop (Shift: punch range)'], ['Double-click ruler', 'Add marker'], ['Double-click a knob or fader', 'Reset it'], ['Shift-drag a knob or fader', 'Fine adjust']];
     K.dialog('Keyboard & mouse', K.h('div', { class: 'keys' }, rows.flatMap(([k, v]) => [K.h('kbd', null, k), K.h('span', null, v)])), [{ label: 'Close', primary: true }], { width: 'min(640px,100%)' });
@@ -1099,8 +1303,8 @@ const A = {
     K.dialog('About', [
       K.h('div', { style: 'display:flex;align-items:center;gap:16px' }, K.h('div', { html: K.LOGO, style: 'width:84px;height:84px;flex:none' }),
         K.h('div', { style: 'flex:1' }, K.h('div', { style: 'font:400 46px/1 var(--script)' }, 'DAWters & Son'), K.h('div', { style: 'font:500 12px var(--head);letter-spacing:3px;text-transform:uppercase;color:var(--muted)' }, '★ Good to the last take ★')),
-        K.h('div', { class: 'burst' }, 'New 2.3.5')),
-      K.h('div', { class: 'note' }, 'Version 2.3.5 — Audacity-style editing: drag across any waveform to select a range, then cut, copy, delete, silence, trim, fade, amplify or reverse just that stretch, or take a noise profile from it; drag a clip by its name bar to move it. 2.3.4: the drum synth has a crash and a ride cymbal, and a pattern placed on the timeline now plays where it sits even after you used Loop. 2.3.3: DAWters and Son is free software, released under the GNU General Public License, version 3 or later. 2.3.2: recording over a track silences its old audio while you record. 2.3.1: hear any effect live with Audition (test sounds, your own track, the song or the mic). 2.3: a Master tab with 16 mastering recipes, level-matched A/B and a spectrum view; a built-in Tuner; noise removal from a noise sample; and a studio set of effects: true-peak limiter, multiband, FET / opto / bus compressors, saturator, tube EQ, de-esser, transient shaper, doubler, imager, tape echo and new reverb rooms. Everything is plain signal processing — no AI.'),
+        K.h('div', { class: 'burst' }, 'New 2.4')),
+      K.h('div', { class: 'note' }, 'Version 2.4.0 — the suite comes in: Eleosynth tracks (play it, write notes for it, or put its guitar pedalboard on any audio track as an insert), Beat tracks that hold a whole Esperanza\'s Drum Kit project (its song, sections and patterns become clips; double-click to edit), Send to DAWters from both apps, Capture (Shift+C) for what you played without recording, and Freeze to print a track to audio. 2.3.5: Audacity-style editing: drag across any waveform to select a range, then cut, copy, delete, silence, trim, fade, amplify or reverse just that stretch, or take a noise profile from it; drag a clip by its name bar to move it. 2.3.4: the drum synth has a crash and a ride cymbal, and a pattern placed on the timeline now plays where it sits even after you used Loop. 2.3.3: DAWters and Son is free software, released under the GNU General Public License, version 3 or later. 2.3.2: recording over a track silences its old audio while you record. 2.3.1: hear any effect live with Audition (test sounds, your own track, the song or the mic). 2.3: a Master tab with 16 mastering recipes, level-matched A/B and a spectrum view; a built-in Tuner; noise removal from a noise sample; and a studio set of effects: true-peak limiter, multiband, FET / opto / bus compressors, saturator, tube EQ, de-esser, transient shaper, doubler, imager, tape echo and new reverb rooms. Everything is plain signal processing — no AI.'),
       K.h('div', { class: 'note' }, 'Still here from 2.2: the On the Air look, loudness-target exports, bus bounces and bus stems, ffmpeg exports (MP3, AAC, Ogg, Opus, FLAC), instruments, piano roll, GrooveMatrix and MIDI.'),
       K.h('div', { class: 'note' }, 'A multitrack studio in the spirit of the classic home-recording DAWs: unlimited tracks, a knob-per-function console with four mixbuses, a master with true-peak limiting, loudness and VU metering. Works without an internet connection; your current song autosaves on this device.'),
       K.h('div', { class: 'note' }, 'Fonts: Yesteryear, Oswald and Courier Prime — SIL Open Font License 1.1. Encoding: FFmpeg (LGPL/GPL), LAME, libvorbis, Opus.'),
@@ -1181,6 +1385,7 @@ const A = {
       if (k === '.') return go(() => this.jumpMarker(1));
       if (k === 'l' || k === 'L') return go(() => this.toggleLoop());
       if (k === 'p' || k === 'P') return go(() => { this.commit('Punch'); this.proj.punch.on = !this.proj.punch.on; this.changed({ transport: true }); });
+      if (k === 'C' && e.shiftKey) return go(() => this.capture());
       if (k === 'c' || k === 'C') return go(() => { this.settings.click = !this.settings.click; this.saveSettings(); this.syncTransport(); });
       if (k === 's' || k === 'S') return go(() => this.split());
       if (k === 'M' && e.shiftKey) return go(() => this.setView('master'));

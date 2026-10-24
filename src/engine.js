@@ -55,6 +55,7 @@ class Graph {
     n.in.connect(n.chan); n.chan.connect(n.fader);
     for (let i = 0; i < M.NSEND; i++) n.sends.push(ctx.createGain());
     if (t.kind === 'inst') this.makeInst(t, n);
+    if (t.kind === 'beat') this.makeBeat(t, n);
     if (meter) {
       const eng = this.eng, id = t.id;
       n.fader.port.onmessage = (e) => { const m = eng.meters[id] || (eng.meters[id] = {}); m.pk = e.data.pk; m.rms = e.data.rms; };
@@ -65,14 +66,24 @@ class Graph {
   makeInst(t, n) {
     if (n.inst) { try { n.inst.disconnect(); } catch (e) { /* */ } n.inst.port.postMessage({ t: 'panic' }); }
     const ev = this.opt.instEvents && this.opt.instEvents[t.id];
+    if (t.inst.type === 'eleo') { // Eleosynth, running in its own editor frame on our context
+      n.inst = this.offline ? SUITE.offlineNode(t, this.ctx, { events: ev }) : SUITE.liveNode(t);
+      n.inst.connect(n.in); n.instSig = this.instSig(t); return;
+    }
     n.inst = new AudioWorkletNode(this.ctx, 'ds-inst', { numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [2], processorOptions: { type: t.inst.type, p: t.inst.p, samples: INST.samplePayload(this.eng, t.inst), events: ev || [] } });
     n.inst.connect(n.in);
     n.instSig = this.instSig(t);
   }
-  instSig(t) { return t.inst.type + '|' + (t.inst.sample || '') + '|' + JSON.stringify(t.inst.padSamples || {}); }
+  // a Beat track: Esperanza's Drum Kit plays our clips of its patterns
+  makeBeat(t, n) {
+    n.inst = this.offline ? SUITE.offlineNode(t, this.ctx, this.opt.range || { s: 0, e: 0 }) : SUITE.liveNode(t);
+    n.inst.connect(n.in);
+  }
+  instSig(t) { return t.inst.type === 'eleo' ? 'eleo' : t.inst.type + '|' + (t.inst.sample || '') + '|' + JSON.stringify(t.inst.padSamples || {}); }
   instParams(t) {
     const n = this.tracks.get(t.id); if (!n || t.kind !== 'inst') return;
     if (!n.inst || n.instSig !== this.instSig(t)) { this.makeInst(t, n); return; }
+    if (t.inst.type === 'eleo') return;
     n.inst.port.postMessage({ t: 'set', p: t.inst.p });
   }
   removeTrack(id) {
@@ -171,7 +182,7 @@ class Engine {
   constructor() {
     this.buffers = new Map(); this.meters = {}; this.segs = new Map();
     this.playing = false; this.recording = false; this.position = 0; this.anchors = [];
-    this.sources = []; this.input = null; this.inLevels = []; this.take = null;
+    this.sources = []; this.input = null; this.inLevels = []; this.take = null; this.cap = []; this.capAnch = [];
     this.listeners = {}; this.matrix = { active: {}, queue: {} }; this.sustained = new Set(); this.sustain = false;
   }
   on(ev, fn) { (this.listeners[ev] || (this.listeners[ev] = [])).push(fn); }
@@ -187,6 +198,7 @@ class Engine {
       this.wurl = 'data:application/javascript;base64,' + btoa(unescape(encodeURIComponent(WORKLET_SRC)));
       await this.ctx.audioWorklet.addModule(this.wurl);
     }
+    SUITE.markLoaded(this.ctx, 'ds-core');
     this.outNode = this.ctx.createGain(); this.outNode.connect(this.ctx.destination);
     this.clickOut = this.ctx.createGain(); this.clickOut.gain.value = 0.5; this.clickOut.connect(this.ctx.destination);
     this.makeClicks();
@@ -197,10 +209,11 @@ class Engine {
   get sr() { return this.ctx.sampleRate; }
   setProject(p) {
     this.proj = p;
+    if (this.ctx) SUITE.sync();
     if (this.graph) this.graph.sync(p); else this.graph = new Graph(this, this.ctx, p, false);
     this.clipsChanged();
   }
-  sync() { this.graph.sync(this.proj); this.clipsChanged(); }
+  sync() { SUITE.sync(); this.graph.sync(this.proj); this.clipsChanged(); }
   clipsChanged() {
     this.segs = new Map();
     for (const t of this.proj.tracks) this.segs.set(t.id, M.flatten(t.clips.filter((c) => this.buffers.has(c.buf))));
@@ -255,6 +268,7 @@ class Engine {
     if (this.playing) return;
     const t = from !== undefined ? from : this.position;
     this.playing = true;
+    SUITE.transportStarted();
     this.restartAt(t);
     this.emit('state');
     return this.sct0;
@@ -264,6 +278,7 @@ class Engine {
     const st = this.ctx.currentTime + 0.06;
     this.sp = t; this.sct = st; this.sct0 = st; this.fresh = true;
     this.anchors = [{ ct: st, sp: t }];
+    this.capMark({ ct: st, sp: t });
     this.tick();
   }
   reschedule() { if (this.playing) this.restartAt(this.pos() + 0.06); }
@@ -275,7 +290,7 @@ class Engine {
     // play follows the arrangement again; with Rec to arrangement on, what played is written in first
     const mxOn = Object.keys(this.matrix.active).length || Object.keys(this.matrix.queue).length;
     if (mxOn) { if (this.onMatrixRec) for (const id in this.matrix.active) this.onMatrixRec(id, this.matrix.active[id], this.matrix.active[id].until !== undefined ? Math.min(this.matrix.active[id].until, this.position) : this.position); this.matrix = { active: {}, queue: {} }; }
-    this.playing = false;
+    this.playing = false; this.capMark({ ct: this.ctx.currentTime, stop: true });
     this.killSources();
     if (this.position < 0) this.position = 0;
     this.graph.sync(this.proj);
@@ -303,7 +318,7 @@ class Engine {
       if (looping && b >= L.e) {
         this.window(this.graph, ctx, a, L.e, this.sct, this.fresh, L.e, true);
         this.sct += L.e - a; this.sp = L.s; this.fresh = true;
-        this.anchors.push({ ct: this.sct, sp: L.s });
+        this.anchors.push({ ct: this.sct, sp: L.s }); this.capMark({ ct: this.sct, sp: L.s });
         if (this.anchors.length > 64) this.anchors.splice(0, this.anchors.length - 64);
       } else {
         this.window(this.graph, ctx, a, b, this.sct, this.fresh, looping ? L.e : Infinity, false);
@@ -323,6 +338,7 @@ class Engine {
         const sr = ctx.sampleRate, ev = this.noteEvents(t, a, b, cap).map((x) => [Math.round((ca + (x[0] - a)) * sr), x[1], x[2], x[3]]);
         if (ev.length) n.inst.port.postMessage({ t: 'ev', ev });
       }
+      if (t.kind === 'beat' && live && n.inst && n.inst.beatWindow) n.inst.beatWindow(SUITE.beatClips(t), a, Math.min(b, cap), ca);
       const segs = this.segs.get(t.id) || [];
       const cov = live ? this.recCover(t) : null; // recording over this track: its old audio is silent there, like tape
       for (const g of segs) {
@@ -429,10 +445,39 @@ class Engine {
   liveNote(trackId, on, n, v) {
     const g = this.graph.tracks.get(trackId); if (!g || !g.inst) return;
     g.inst.port.postMessage({ t: 'now', k: on ? 1 : 0, n, v });
+    // always-on capture: every note played is kept for a few minutes, armed or not
+    const ct = this.ctx.currentTime - (this.ctx.outputLatency || 0);
+    this.cap.push([ct, on ? 1 : 0, n, v, trackId]);
+    if (this.cap.length > 6000 || ct - this.cap[0][0] > 300) { const cut = this.cap.findIndex((x) => ct - x[0] <= 300); this.cap.splice(0, Math.max(cut < 0 ? this.cap.length : cut, this.cap.length - 6000)); }
     if (this.recording && this.take && this.take.midi) {
       const t = this.proj.tracks.find((x) => x.id === trackId);
       if (t && t.arm) this.take.midi.push([this.pos() - (this.ctx.outputLatency || 0), on ? 1 : 0, n, v, trackId]);
     }
+  }
+  // ------- always-on capture -------
+  capMark(a) { this.capAnch.push(a); const now = this.ctx.currentTime; while (this.capAnch.length > 2 && now - this.capAnch[1].ct > 400) this.capAnch.shift(); if (this.capAnch.length > 400) this.capAnch.splice(0, 100); }
+  // where the song was at context time ct, or null if the transport was stopped
+  songAt(ct) {
+    let a = null; for (const x of this.capAnch) if (x.ct <= ct + 1e-6) a = x; else break;
+    return a && !a.stop ? a.sp + (ct - a.ct) : null;
+  }
+  // the last phrase played: walks back from the latest event until a silence longer than gap seconds
+  capNotes(gap) {
+    const ev = this.cap; if (!ev.length) return null;
+    const until = new Array(ev.length), open = new Map(), now = this.ctx.currentTime;
+    for (let i = ev.length - 1; i >= 0; i--) { const e = ev[i], key = e[4] + ':' + e[2]; if (!e[1]) { open.set(key, e[0]); until[i] = e[0]; } else { until[i] = open.has(key) ? open.get(key) : now; open.delete(key); } }
+    let t = ev[ev.length - 1][0], k = ev.length - 1;
+    for (let i = ev.length - 1; i >= 0; i--) { if (until[i] < t - gap) break; t = Math.min(t, ev[i][0]); k = i; }
+    while (k < ev.length && !ev[k][1]) k++;
+    const out = ev.slice(k); return out.length ? out : null;
+  }
+  async grabAudio() {
+    const i = this.input; if (!i) return null;
+    const got = new Promise((r) => { this._grabRes = r; setTimeout(() => r(null), 2000); });
+    i.rec.port.postMessage({ type: 'grab' });
+    const m = await got; this._grabRes = null;
+    if (!m || !m.ch || !m.ch[0].length) return null;
+    return { ch: m.ch, c0: (m.end - m.ch[0].length) / this.sr, cEnd: m.end / this.sr, lat: this.latency() };
   }
   panicInst() { for (const n of this.graph.tracks.values()) if (n.inst) n.inst.port.postMessage({ t: 'panic' }); }
   // GrooveMatrix: launch / stop patterns per track, quantized to the next bar while playing
@@ -489,7 +534,7 @@ class Engine {
     else if (st === 0xb0 && d[1] === 64) { const on = d[2] >= 64; if (!on && this.sustain) { for (const n of this.sustained) this.liveNote(target, false, n, 0); this.sustained.clear(); } this.sustain = on; }
     else if (st === 0xb0 && (d[1] === 123 || d[1] === 120)) this.panicInst();
   }
-  setBpm(bpm) { this.proj.bpm = bpm; this.graph.tempo(); this.reschedule(); }
+  setBpm(bpm) { this.proj.bpm = bpm; this.graph.tempo(); SUITE.tempo(bpm); this.reschedule(); }
   // ------- input & recording -------
   async listInputs() {
     try { const d = await navigator.mediaDevices.enumerateDevices(); return { ins: d.filter((x) => x.kind === 'audioinput'), outs: d.filter((x) => x.kind === 'audiooutput') }; } catch (e) { return { ins: [], outs: [] }; }
@@ -537,12 +582,14 @@ class Engine {
       const ch = this.chanFor(t), merge = this.ctx.createChannelMerger(2), g = this.ctx.createGain();
       if (ch.length === 1) { i.split.connect(merge, ch[0], 0); i.split.connect(merge, ch[0], 1); }
       else { i.split.connect(merge, ch[0], 0); i.split.connect(merge, ch[1], 1); }
-      merge.connect(g); g.connect(n.in);
+      const sx = t.kind === 'inst' && t.inst.type === 'eleo' ? SUITE.ensure(t.id) : null; // guitar into Eleosynth (pedals, Guitar → Synth)
+      merge.connect(g); g.connect(sx && sx.inp ? sx.inp : n.in);
       i.monitors.set(t.id, { g, merge, key: t.input });
     }
   }
   recMsg(m) {
     if (m.t === 'lvl') this.inLevels = m.pk;
+    else if (m.t === 'grab') { if (this._grabRes) this._grabRes(m); }
     else if (m.t === 'chunk' && this.take) {
       this.take.chunks.push(m);
       // live overview peaks
@@ -665,8 +712,10 @@ class Engine {
     const len = Math.max(1, Math.ceil((e - s + tail) * sr));
     const oc = new OfflineAudioContext(2, len + lat, sr);
     await oc.audioWorklet.addModule(this.wurl);
-    const g = new Graph(this, oc, this.proj, true, { solo: o.solo, only: o.only, busOnly: o.busOnly, bypassMaster: o.bypassMaster, driveDb: o.driveDb, ceiling: o.ceiling, instEvents: this.instEventsAll(s, e + tail, e, sr) });
+    SUITE.markLoaded(oc, 'ds-core');
+    const g = new Graph(this, oc, this.proj, true, { solo: o.solo, only: o.only, busOnly: o.busOnly, bypassMaster: o.bypassMaster, driveDb: o.driveDb, ceiling: o.ceiling, instEvents: this.instEventsAll(s, e + tail, e, sr), range: { s, e } });
     this.window(g, oc, s, e + tail, 0, true, e, false);
+    await SUITE.settle(oc); // Eleosynth and Esperanza's Drum Kit build their engines on this context first
     const raw = await oc.startRendering();
     g.dispose();
     if (!lat) return raw;

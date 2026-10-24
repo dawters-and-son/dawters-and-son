@@ -137,6 +137,7 @@ const CON = {
     const phase = K.h('button', { class: 'mini' + (ch.phase ? ' on solo' : ''), title: 'Polarity invert' }, 'Ø');
     phase.addEventListener('click', () => { A.commit('Polarity'); ch.phase = !ch.phase; phase.classList.toggle('on', ch.phase); phase.classList.toggle('solo', ch.phase); this.push(target); A.save(); });
     const input = this.sec(t.id, 'input', 'INPUT', [this.kb(ch, 'trim', this.P.trim, sky), K.h('div', { style: 'display:flex;align-items:center;justify-content:center;width:40px' }, phase), this.kb(ch, 'hpf', this.P.hpf, sky), this.kb(ch, 'lpf', this.P.lpf, sky)]);
+    if (t.kind === 'beat') input.querySelector('.sb').prepend(K.h('button', { class: 'slot full inst-btn', title: "Open Esperanza's Drum Kit", onclick: () => SUITE.open(t) }, 'Drum Kit ▸'));
     if (t.kind === 'inst') input.querySelector('.sb').prepend(K.h('button', { class: 'slot full inst-btn', title: 'Edit the instrument', onclick: () => INSTUI.open(t) }, INST.TYPES[t.inst.type] + ' ▸'));
     const gr = K.h('div', { class: 'grbar', title: 'Gain reduction' }, K.h('i')); this.grs.push({ id: t.id, el: gr.firstChild });
     const tape = this.sec(t.id, 'tape', 'TAPE', [K.h('div', { class: 'full' }, this.kb(ch, 'tape', this.P.tape, { color: '#13A3A0', target }))]);

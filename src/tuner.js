@@ -165,7 +165,7 @@ const TUNER = {
     const s = this.st; if (!s) return;
     this.toneOff(); cancelAnimationFrame(s.raf);
     try { s.an && s.an.disconnect(); A.eng.input && A.eng.input.src.disconnect(s.an); } catch (e) { /* */ }
-    const E = A.eng; if (s.ownInput && E.input && !E.recording && !A.proj.tracks.some((t) => t.arm || t.mon)) E.closeInput();
+    const E = A.eng; if (s.ownInput && E.input && !E.recording && !A.settings.capListen && !A.proj.tracks.some((t) => t.arm || t.mon)) E.closeInput();
     s.el.remove(); this.st = null;
   },
 };

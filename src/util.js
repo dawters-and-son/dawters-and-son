@@ -187,3 +187,6 @@ U.pickFile = (accept, multiple) => new Promise((res) => {
   i.onchange = () => { res(Array.from(i.files || [])); i.remove(); };
   i.click();
 });
+// Float32 audio <-> base64 (how the suite apps hand samples to each other inside JSON)
+U.f32b64 = (f) => { const u = new Uint8Array(f.buffer, f.byteOffset, f.byteLength); let s = ''; for (let i = 0; i < u.length; i += 32768) s += String.fromCharCode.apply(null, u.subarray(i, i + 32768)); return btoa(s); };
+U.b64f32 = (s) => { const b = atob(s), u = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return new Float32Array(u.buffer); };

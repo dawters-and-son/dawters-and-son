@@ -1,4 +1,4 @@
-# DAWters and Son — v2.3.5
+# DAWters and Son — v2.4.0
 
 **Free software.** Copyright (C) 2026 Josh Wilk. Licensed under the GNU General Public License,
 version 3 or (at your option) any later version — see [LICENSE](LICENSE). Bundled third-party parts
@@ -13,8 +13,8 @@ processors, no UI libraries, works offline; ffmpeg for compressed exports) ships
 |---|---|---|
 | Mac (Apple Silicon) | `dist/DAWters-and-Son-2.2-arm64.dmg` | Electron 45 shell, ad-hoc signed — first launch needs *Open Anyway* in Privacy & Security; native ffmpeg inside |
 | Android 7.0+ | `dist/DAWters-and-Son-2.2.apk` | WebView shell, phones and tablets, saves to `Music/DAWters and Son/`; ffmpeg.wasm inside |
-| Windows 10/11 (x64) | `dist/DAWters-and-Son-2.3.5-Setup-x64.exe` (+ `-win-x64-portable.zip`) | Same Electron shell; per-user NSIS installer (no admin), Start-menu **D&S Tuner** shortcut, `.dawters` association, native ffmpeg.exe; unsigned → SmartScreen *More info › Run anyway* |
-| Ubuntu / Debian (amd64) | `dist/DAWters-and-Son-2.3.5-amd64.deb` | Same Electron shell; launcher + **D&S Tuner** launcher, `application/x-dawters` file type, hicolor icons, static ffmpeg, AppArmor profile for Ubuntu 24.04's user-namespace restriction |
+| Windows 10/11 (x64) | `dist/DAWters-and-Son-2.4.0-Setup-x64.exe` (+ `-win-x64-portable.zip`) | Same Electron shell; per-user NSIS installer (no admin), Start-menu **D&S Tuner** shortcut, `.dawters` association, native ffmpeg.exe; unsigned → SmartScreen *More info › Run anyway* |
+| Ubuntu / Debian (amd64) | `dist/DAWters-and-Son-2.4.0-amd64.deb` | Same Electron shell; launcher + **D&S Tuner** launcher, `application/x-dawters` file type, hicolor icons, static ffmpeg, AppArmor profile for Ubuntu 24.04's user-namespace restriction |
 | Localhost web | `dist/DAWters-and-Son-2.2-web.zip` | Double-click the starter → `http://localhost:8737`; also runs straight from `index.html` in Chrome (WAV export only that way) |
 
 ## Phase 1 features
@@ -45,6 +45,27 @@ Wobble Tremolo, Tangerine Tube Drive, Rainbow 10-band Graphic EQ.
 **Files** — `.dawters` song files (zip with project JSON + 32-bit float WAVs), autosave on the device,
 import WAV/MP3/OGG/FLAC/M4A (drag and drop too), offline export of stereo mixdown or stems (zip),
 16-bit dithered / 24 / 32-float, 44.1/48/96 kHz, tail, normalize; export reports peak and integrated LUFS.
+
+## v2.4.0 — the suite: Eleosynth and Esperanza's Drum Kit inside DAWters
+
+- **Eleosynth tracks** (Track → Add Eleosynth track): the full synth runs inside DAWters on the song's clock.
+  Play it from the computer keyboard, a MIDI controller or its own keys; write notes in its pattern; it
+  renders sample-accurately in exports and bounces. **ELEO ▸** on the track header opens its editor.
+- **Eleosynth Pedalboard insert** (FX → The suite): the guitar rig on any audio track. Takes are recorded
+  dry while you hear them through the pedals, so you can change the rig later (re-amping).
+- **Beat tracks** (Track → Add Beat track): each holds a whole Esperanza's Drum Kit project, saved inside
+  the song. Its song, its sections and its patterns go on the timeline as clips (**+ CLIP**, or the clip's
+  menu → This clip plays); double-click a beat clip, or **EDK ▸**, to edit it in the full drum kit.
+- **Send to DAWters** from Eleosynth (Takes & files: the sound, or any take) and from the Drum Kit
+  (File menu). On the web it opens DAWters and drops the idea onto a new track; the desktop and Android
+  builds save a `.dawsuite.json` for **File → Import from the suite**, which also takes `.edk` projects and
+  `.eleosynth.json` sounds (drag and drop works too).
+- **Capture** (button, or Shift+C): DAWters keeps the last few minutes of every note you play and, with
+  Track → Listen for Capture, the last 90 seconds of the input. Capture pulls the last phrase (everything
+  since a silence of 6 s) into the song: notes become a pattern, audio becomes a clip, at the song position
+  where you played them, or at the playhead if the transport was stopped.
+- **Freeze** (Track menu): prints an instrument, Eleosynth, Beat or pedalboard track to audio and mutes the
+  original; Unfreeze removes the print and brings the original back.
 
 ## v2.3.5 — Audacity-style range editing
 

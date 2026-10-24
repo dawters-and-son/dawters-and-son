@@ -1,4 +1,4 @@
-DAWters and Son 2.3.5 — lightweight web version
+DAWters and Son 2.4.0 — lightweight web version
 
 Double-click the starter for your computer:
   Mac:      "Start DAWters (Mac).command"   (first time: right-click > Open)

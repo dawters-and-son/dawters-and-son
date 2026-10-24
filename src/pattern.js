@@ -339,6 +339,7 @@ const PAT = {
 // ---------- instrument panel ----------
 const INSTUI = {
   open(t) {
+    if (t.inst && t.inst.type === 'eleo') return SUITE.open(t); // Eleosynth edits its own sound
     const h = K.h, inst = t.inst;
     const body = h('div', { class: 'in-body' });
     const draw = () => {

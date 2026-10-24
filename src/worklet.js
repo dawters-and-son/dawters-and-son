@@ -390,8 +390,15 @@ class DSRec extends AudioWorkletProcessor {
     super();
     this.rec = false; this.at = 0; this.buf = null; this.bi = 0; this.bstart = 0; this.CH = 16384;
     this.pk = []; this.mf = 0; this.mevery = Math.round(sampleRate / 25);
+    // always-on capture ring: the last 90 seconds of the input, whether or not anything is recording
+    this.RL = Math.round(sampleRate * 90); this.ring = null; this.rw = 0; this.rn = 0; this.rend = 0;
     this.port.onmessage = (e) => {
       const m = e.data;
+      if (m.type === 'grab') {
+        const ch = []; const n = this.rn;
+        if (this.ring) for (const r of this.ring) { const o = new Float32Array(n); const s0 = (this.rw - n + this.RL) % this.RL; const a = Math.min(n, this.RL - s0); o.set(r.subarray(s0, s0 + a)); if (a < n) o.set(r.subarray(0, n - a), a); ch.push(o); }
+        this.port.postMessage({ t: 'grab', end: this.rend, ch }, ch.map((c) => c.buffer)); return;
+      }
       if (m.type === 'start') { this.rec = true; this.at = m.at; this.buf = null; }
       else if (m.type === 'stop') { this.flush(); this.rec = false; this.port.postMessage({ t: 'stopped' }); }
     };
@@ -410,6 +417,9 @@ class DSRec extends AudioWorkletProcessor {
     const n = inp[0].length;
     while (this.pk.length < nch) this.pk.push(0);
     for (let c = 0; c < nch; c++) { const d = inp[c]; let m = this.pk[c]; for (let i = 0; i < n; i++) { const a = Math.abs(d[i]); if (a > m) m = a; } this.pk[c] = m; }
+    if (!this.ring || this.ring.length !== nch) { this.ring = []; for (let c = 0; c < nch; c++) this.ring.push(new Float32Array(this.RL)); this.rw = 0; this.rn = 0; }
+    for (let c = 0; c < nch; c++) { const r = this.ring[c], d = inp[c]; let w = this.rw; for (let i = 0; i < n; i++) { r[w] = d[i]; if (++w >= this.RL) w = 0; } }
+    this.rw = (this.rw + n) % this.RL; this.rn = Math.min(this.RL, this.rn + n); this.rend = currentFrame + n;
     this.mf += n;
     if (this.mf >= this.mevery) { this.port.postMessage({ t: 'lvl', pk: this.pk.slice(0, nch) }); this.pk.fill(0); this.mf = 0; }
     if (this.rec) {

@@ -160,6 +160,10 @@ const DECK = {
     const env = (k, label) => seg([[true, label + ' envelope'], [false, 'No ' + label.toLowerCase() + ' envelope']], () => t.env[k].on, (v) => { A.commit(label + ' envelope'); t.env[k].on = v; A.changed({ graph: true }); });
     const body = [
       h('div', { class: 'sh-sub' }, 'Name & colour'), name, sw,
+      t.kind === 'beat' ? h('div', { class: 'sh-sub' }, 'Beat') : null,
+      t.kind === 'beat' ? h('div', { class: 'sh-acts' },
+        h('button', { class: 'act on', onclick: () => { s.close(); SUITE.open(t); } }, "Esperanza's Drum Kit — edit the beat"),
+        h('button', { class: 'act', onclick: (e) => { const i = SUITE.inst.get(t.id); if (i && i.api) SUITE.placeMenu(i, e.clientX, e.clientY); } }, '+ Put on the timeline')) : null,
       t.kind === 'inst' ? h('div', { class: 'sh-sub' }, 'Instrument') : null,
       t.kind === 'inst' ? h('div', { class: 'sh-acts' },
         h('button', { class: 'act on', onclick: () => { s.close(); INSTUI.open(t); } }, INST.TYPES[t.inst.type] + ' — edit sound'),
@@ -167,7 +171,7 @@ const DECK = {
         h('button', { class: 'act', onclick: () => { s.close(); A.setView('matrix'); } }, 'GrooveMatrix')) : null,
       h('div', { class: 'sh-sub' }, t.kind === 'inst' ? 'Record notes' : 'Record from'),
       t.kind === 'inst' ? null : seg([['1', 'In 1'], ['2', 'In 2'], ['1+2', 'In 1+2 stereo']], () => t.input, (v) => A.setInput(t, v)),
-      tog('arm', '● Armed', 'Not armed'), t.kind === 'inst' ? null : tog('mon', 'Hear the input', 'Input silent'),
+      t.kind === 'beat' ? null : tog('arm', '● Armed', 'Not armed'), t.kind === 'beat' || (t.kind === 'inst' && t.inst.type !== 'eleo') ? null : tog('mon', t.kind === 'inst' ? 'Guitar into Eleosynth' : 'Hear the input', 'Input silent'),
       h('div', { class: 'sh-sub' }, 'Send to'),
       seg([['master', 'Master'], ...P.buses.map((b, i) => ['bus' + i, b.name])], () => t.out, (v) => { A.commit('Output'); t.out = v; A.eng.graph.trackRouting(t); A.save(); CON.stale = true; }),
       seg([[false, 'Mono'], [true, 'Stereo']], () => t.stereo, (v) => { A.commit('Track width'); t.stereo = v; A.changed({ graph: true, console: true }); }),
@@ -267,8 +271,8 @@ const DECK = {
         A.status('Range ' + A.rangeLabel(A.ui.range)); this.dirty = true; ARR.dirty = true; return;
       }
       if (g.kind === 'body') c.start = Math.max(0, ARR.snap(g.s0.start + dt, e));
-      else if (g.kind === 'trimL') { const s0 = g.s0, end = s0.start + s0.len, ns = U.clamp(ARR.snap(s0.start + dt, e), c.pat ? 0 : Math.max(0, s0.start - s0.off), end - 0.01); c.start = ns; c.off = s0.off + (ns - s0.start); c.len = end - ns; c.fi = Math.min(c.fi, c.len); c.fo = Math.min(c.fo, c.len - c.fi); }
-      else if (g.kind === 'trimR') { const s0 = g.s0, b = A.eng.buffers.get(c.buf), max = c.pat ? 3600 : b ? b.ab.duration - s0.off : s0.len; c.len = U.clamp(ARR.snap(s0.start + s0.len + dt, e) - s0.start, 0.01, max); c.fo = Math.min(c.fo, c.len); c.fi = Math.min(c.fi, c.len - c.fo); }
+      else if (g.kind === 'trimL') { const s0 = g.s0, end = s0.start + s0.len, ns = U.clamp(ARR.snap(s0.start + dt, e), c.pat || c.beat ? 0 : Math.max(0, s0.start - s0.off), end - 0.01); c.start = ns; c.off = s0.off + (ns - s0.start); c.len = end - ns; c.fi = Math.min(c.fi, c.len); c.fo = Math.min(c.fo, c.len - c.fi); }
+      else if (g.kind === 'trimR') { const s0 = g.s0, b = A.eng.buffers.get(c.buf), max = c.pat || c.beat ? 3600 : b ? b.ab.duration - s0.off : s0.len; c.len = U.clamp(ARR.snap(s0.start + s0.len + dt, e) - s0.start, 0.01, max); c.fo = Math.min(c.fo, c.len); c.fi = Math.min(c.fi, c.len - c.fo); }
       A.eng.clipsChanged(); this.dirty = true; ARR.dirty = true;
     });
     const up = (e, cancel) => {
@@ -286,7 +290,7 @@ const DECK = {
     cv.addEventListener('pointerup', (e) => up(e));
     cv.addEventListener('pointercancel', (e) => up(e, true));
     cv.addEventListener('contextmenu', (e) => { e.preventDefault(); const o = off(e); this.pressMenu(r, this.hit(r, o.x, o.y, false), e.clientX, e.clientY); });
-    cv.addEventListener('dblclick', (e) => { const o = off(e), hh = this.hit(r, o.x, o.y, false); if (hh.c) A.clipDialog(hh.c); });
+    cv.addEventListener('dblclick', (e) => { const o = off(e), hh = this.hit(r, o.x, o.y, false); if (hh.c && hh.c.beat) SUITE.open(r.t); else if (hh.c) A.clipDialog(hh.c); });
     cv.addEventListener('wheel', (e) => {
       e.preventDefault();
       const o = off(e);
@@ -404,6 +408,7 @@ const DECK = {
     if (c.mute) ARR.hatch(g, x1, top + HD, w, h - HD, T.text, 6);
     const b = A.eng.buffers.get(c.buf);
     if (c.pat) ARR.drawNotes(g, c, x1, x2, top + HD + 2, h - HD - 4, r.w / this.span, T, (t) => this.tToX(r, t), (x) => this.xToT(r, x), r.w);
+    if (c.beat) ARR.drawBeat(g, tr, c, top + HD + 2, h - HD - 4, r.w / this.span, T, (t) => this.tToX(r, t), (x) => this.xToT(r, x), r.w);
     if (b) {
       const sr = b.ab.sampleRate, pps = r.w / this.span, spp = sr / pps;
       let lvl = 0; while (lvl + 1 < U.LEVELS.length && U.LEVELS[lvl + 1] <= spp) lvl++;
