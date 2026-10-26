@@ -32,7 +32,7 @@ console.log(classes.length + ' plug-in classes in ' + bundles.length + ' bundles
 if (classes.length < 10) fail('expected the SDK samples to offer at least 10 classes');
 
 // ---- play through some of them
-const pick = ['ADelay', 'AGain VST3', 'mda Delay', 'mda Overdrive', 'mda Ambience', 'mda Limiter', 'mda JX10', 'mda DX10', 'mda Piano', 'Note Expression Synth'];
+const pick = ['ADelay', 'AGain VST3', 'mda Delay', 'mda Degrade', 'mda Ambience', 'mda Limiter', 'mda JX10', 'mda DX10', 'mda Piano', 'Note Expression Synth'];
 for (const name of pick) {
   const c = classes.find((x) => x.name === name); if (!c) { console.log('skip ' + name + ' (not built)'); continue; }
   const r = run(['--selftest', c.path, c.cid]);
