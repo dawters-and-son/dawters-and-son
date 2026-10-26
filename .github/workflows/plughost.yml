@@ -66,6 +66,7 @@ jobs:
           EXE=out/dawters-plughost; [ "$RUNNER_OS" = Windows ] && EXE=out/dawters-plughost.exe
           ED=""; [ "$RUNNER_OS" != Linux ] && ED=--editors
           node native/plughost/test/selftest.js "$EXE" "$RUNNER_TEMP/sdkb/VST3/Release" $ED | tee "$RUNNER_TEMP/t.log" || { grep -E "^FAIL" "$RUNNER_TEMP/t.log" | while IFS= read -r l; do echo "::error::${l:0:900}"; done; exit 1; }
+          grep -E "^ok   (serve|editor)|classes in|all good" "$RUNNER_TEMP/t.log" | while IFS= read -r l; do echo "::notice::${l}"; done
       - uses: actions/upload-artifact@v4
         with:
           name: plughost-${{ matrix.name }}
