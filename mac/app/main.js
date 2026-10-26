@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Josh Wilk. Part of DAWters and Son; see LICENSE for terms (no warranty).
 // DAWters and Son — macOS shell (Electron). The studio itself is dawters.html.
-const { app, BrowserWindow, Menu, dialog, ipcMain, session, shell, systemPreferences } = require('electron');
+const { app, BrowserWindow, Menu, MessageChannelMain, dialog, ipcMain, session, shell, systemPreferences, utilityProcess } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -125,6 +125,36 @@ ipcMain.handle('mic-access', async () => {
   if (process.platform !== 'darwin') return true;
   try { return await systemPreferences.askForMediaAccess('microphone'); } catch (e) { return false; }
 });
+
+// ---- VST3 plug-ins: dawters-plughost runs them in a process of its own, reached through a relay in a
+// utility process; the studio gets message ports straight to the relay (one for control, one per audio context)
+const plughostPath = () => {
+  const exe = process.platform === 'win32' ? 'dawters-plughost.exe' : 'dawters-plughost';
+  const cands = [process.env.DAWTERS_PLUGHOST, path.join(process.resourcesPath || '', 'plughost', exe), path.join(__dirname, 'plughost', exe)].filter(Boolean);
+  for (const c of cands) { try { fs.accessSync(c, fs.constants.X_OK); return c; } catch (e) { /* next */ } }
+  return null;
+};
+let relay = null;
+const plugRelay = () => {
+  if (relay) return relay;
+  relay = utilityProcess.fork(path.join(__dirname, 'plugrelay.js'), [], {
+    serviceName: 'DAWters plug-ins', stdio: 'inherit',
+    env: Object.assign({}, process.env, { PLUGHOST: plughostPath() || '', PLUG_CACHE: path.join(app.getPath('userData'), 'plugins.json') }),
+  });
+  relay.on('exit', () => { relay = null; });
+  return relay;
+};
+ipcMain.handle('plug-available', () => !!plughostPath());
+ipcMain.on('plug-port', (e, kind, tag) => {
+  const { port1, port2 } = new MessageChannelMain();
+  plugRelay().postMessage({ kind: kind === 'control' ? 'control' : 'audio' }, [port1]);
+  e.sender.postMessage('plug-port', { kind, tag }, [port2]);
+});
+ipcMain.handle('plug-pick-folder', async () => {
+  const r = await dialog.showOpenDialog(win, { properties: ['openDirectory'], title: 'A folder with VST3 plug-ins' });
+  return r.canceled ? null : r.filePaths[0];
+});
+app.on('will-quit', () => { if (relay) { try { relay.kill(); } catch (e) { /* */ } } });
 
 // a .dawters path on the command line (Windows file association) or from Finder: read it and hand it to the studio
 const songArg = (argv) => argv.slice(1).find((a) => /\.dawters$/i.test(a) && fs.existsSync(a));

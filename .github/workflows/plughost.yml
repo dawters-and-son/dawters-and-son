@@ -1,0 +1,69 @@
+# Builds dawters-plughost (the VST3 plug-in host) on a Mac, on Windows and on Linux, and tests each build
+# against the VST3 SDK's own sample plug-ins: scanning, audio through effects and instruments, state,
+# the --serve protocol DAWters speaks, and (Mac, Windows) opening plug-in windows.
+# The release workflow calls this and packs each host into its desktop app.
+name: Plug-in host
+on:
+  workflow_call:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['native/plughost/**', '.github/workflows/plughost.yml']
+permissions:
+  contents: read
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-14, name: mac }
+          - { os: windows-2022, name: windows }
+          - { os: ubuntu-22.04, name: linux }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: VST3 SDK 3.8.1 (MIT license)
+        shell: bash
+        run: git clone -q --depth 1 --branch v3.8.1_build_84 --recursive --shallow-submodules https://github.com/steinbergmedia/vst3sdk.git "$RUNNER_TEMP/vst3sdk"
+      - name: Linux libraries (for the SDK's sample plug-ins)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libx11-xcb-dev libxcb-util-dev libxcb-cursor-dev libxcb-xkb-dev libxkbcommon-dev \
+            libxkbcommon-x11-dev libfontconfig1-dev libcairo2-dev libgtkmm-3.0-dev libsqlite3-dev libxcb-keysyms1-dev
+      - name: Build the plug-in host
+        shell: bash
+        run: |
+          ARGS=()
+          [ "$RUNNER_OS" = macOS ] && ARGS+=("-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64")
+          cmake -S native/plughost -B "$RUNNER_TEMP/ph" -DCMAKE_BUILD_TYPE=Release -DVST3_SDK_ROOT="$RUNNER_TEMP/vst3sdk" "${ARGS[@]}"
+          cmake --build "$RUNNER_TEMP/ph" --config Release --target dawters-plughost --parallel 4
+          mkdir -p out
+          if [ "$RUNNER_OS" = Windows ]; then cp "$RUNNER_TEMP/ph/Release/dawters-plughost.exe" out/
+          else cp "$RUNNER_TEMP/ph/dawters-plughost" out/; fi
+          if [ "$RUNNER_OS" = macOS ]; then codesign --force -s - out/dawters-plughost; lipo -info out/dawters-plughost; fi
+          cp LICENSE out/LICENSE.txt
+          ls -la out
+      - name: Build the SDK's sample plug-ins to test with
+        shell: bash
+        run: |
+          cmake -S "$RUNNER_TEMP/vst3sdk" -B "$RUNNER_TEMP/sdkb" -DCMAKE_BUILD_TYPE=Release -DSMTG_CREATE_PLUGIN_LINK=OFF \
+            -DSMTG_RUN_VST_VALIDATOR=OFF -DSMTG_ENABLE_VST3_HOSTING_EXAMPLES=OFF -DSMTG_ENABLE_AUV2_BUILDS=OFF
+          cmake --build "$RUNNER_TEMP/sdkb" --config Release --parallel 4 --target again adelay mda-vst3 note-expression-synth
+          ls "$RUNNER_TEMP/sdkb/VST3/Release"
+      - name: Test the host
+        shell: bash
+        run: |
+          EXE=out/dawters-plughost; [ "$RUNNER_OS" = Windows ] && EXE=out/dawters-plughost.exe
+          ED=""; [ "$RUNNER_OS" != Linux ] && ED=--editors
+          node native/plughost/test/selftest.js "$EXE" "$RUNNER_TEMP/sdkb/VST3/Release" $ED
+      - uses: actions/upload-artifact@v4
+        with:
+          name: plughost-${{ matrix.name }}
+          path: out/
+          if-no-files-found: error

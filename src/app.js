@@ -46,6 +46,8 @@ const A = {
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { ARR.dirty = true; DECK.render(); });
     this.eng = new Engine();
     await this.eng.init(this.settings);
+    // VST3 plug-ins (desktop builds): ready before the song loads, so its plug-ins start with it
+    try { await Promise.race([PLUG.init(), new Promise((r) => setTimeout(r, 4000))]); } catch (e) { console.warn('plug-ins unavailable', e); }
     this.eng.clickOut.gain.value = this.settings.clickVol;
     this.eng.on('state', () => this.syncTransport());
     this.eng.on('take', (list) => this.applyTake(list));
@@ -419,7 +421,8 @@ const A = {
       { label: 'Synth', act: () => this.addInstTrack('synth') }, { label: 'Drums', act: () => this.addInstTrack('drums') }, { label: 'Sampler', act: () => this.addInstTrack('sampler') },
       { head: 'The suite' },
       { label: 'Eleosynth (synth + guitar pedals)', disabled: !SUITE.has('eleo'), act: () => this.addInstTrack('eleo') },
-      { label: "Beat · Esperanza's Drum Kit", disabled: !SUITE.has('edk'), act: () => this.addBeatTrack() }], x, y);
+      { label: "Beat · Esperanza's Drum Kit", disabled: !SUITE.has('edk'), act: () => this.addBeatTrack() },
+      ...this.plugInstItems().map((it) => Object.assign({}, it, { label: 'VST3 instrument…' }))], x, y);
   },
   // MIDI recorded while transport ran -> a new pattern + clip per armed instrument track
   applyMidiTake(m) {
@@ -820,6 +823,7 @@ const A = {
   async saveProject() {
     this.status('Packing song…');
     SUITE.flush();
+    await PLUG.flush();
     const used = M.bufRefs(this.proj);
     const files = [{ name: 'project.json', data: new TextEncoder().encode(JSON.stringify(this.proj, null, 1)) }];
     for (const id of used) {
@@ -976,6 +980,7 @@ const A = {
     const f = o.fx[k]; if (!f) return;
     this.closeFx();
     if (FX.types[f.type].suite) { SUITE.show(f.id); return; } // Eleosynth Pedalboard: its own editor
+    if (FX.types[f.type].plugin) { this.openPlugFx(o, k); return; } // a VST3 plug-in: its own window
     const def = FX.types[f.type], h = K.h, G = () => this.eng.graph.refreshFx(o), title = def.name + ' · ' + this.fxOwnerName(o);
     const kids = def.params.map((s) => {
       if (s.opts) {
@@ -1011,15 +1016,70 @@ const A = {
     const x = r ? Math.min(innerWidth - 360, r.getBoundingClientRect().right + 10) : 120;
     this.fxWin = K.dialog(title, kids, acts, { float: true, x, y: 110, onClose });
   },
+  // a VST3 insert: a small panel (status, its window, on/off, remove); the plug-in's controls are in its own window
+  openPlugFx(o, k) {
+    const f = o.fx[k], h = K.h, plug = f.plug;
+    const st = h('div', { class: 'note' }, 'Starting…');
+    const show = () => {
+      const w = PLUG.liveFor(f);
+      if (!PLUG.ok) st.textContent = 'This song uses ' + PLUG.label(plug) + '. VST3 plug-ins run in the desktop app (Mac, Windows, Linux); here it is passed through untouched.';
+      else if (!w) st.textContent = f.on ? 'Not running.' : 'Switched off.';
+      else if (w.error) st.textContent = 'Could not load: ' + w.error + '. Check it is still installed, then rescan in Settings › Plug-ins.';
+      else if (!w.id) st.textContent = 'Loading ' + plug.name + '…';
+      else st.textContent = 'Running in its own process' + (w.info && w.info.latency ? ' · adds ' + (w.info.latency / this.eng.sr * 1000).toFixed(1) + ' ms (compensated)' : '') + (w.late ? ' · ' + w.late + ' late blocks — raise the plug-in buffer in Settings if you hear clicks' : '') + '.';
+    };
+    show(); const timer = setInterval(show, 500);
+    const kids = [h('div', { style: 'grid-column:1/-1;display:flex;flex-direction:column;gap:10px;min-width:0' }, h('div', { class: 'note' }, PLUG.label(plug)), st)];
+    const acts = [
+      { label: 'Plug-in window', primary: true, act: () => { PLUG.openEditor(f); return false; } },
+      { label: f.on ? 'Switch off' : 'Switch on', act: () => { this.commit('FX bypass'); f.on = !f.on; this.changed({ graph: true, console: true }); this.openFx(o, k); return false; } },
+      { label: 'Remove', act: () => { this.commit('Remove FX'); o.fx.splice(k, 1); this.changed({ graph: true, console: true }); } },
+      { label: 'Done' },
+    ];
+    const onClose = () => { this.fxWin = null; clearInterval(timer); };
+    this.fxWin = K.isTouch() ? K.sheet(plug.name + ' · ' + this.fxOwnerName(o), kids, acts, { light: true, onClose }) : K.dialog(plug.name + ' · ' + this.fxOwnerName(o), kids, acts, { float: true, x: 140, y: 110, onClose, width: 'min(520px,100%)' });
+    if (PLUG.ok && f.on) PLUG.openEditor(f);
+  },
+  // VST3 plug-ins in the add-an-effect / add-a-track menus
+  plugFxItems(o, k, replace) {
+    if (!PLUG.ok) return [];
+    const items = [{ head: 'VST3 plug-ins' }];
+    const add = (p) => { this.commit('Insert plug-in'); const nf = { id: U.uid('f'), type: 'vst3', on: true, p: {}, plug: { path: p.path, cid: p.cid, name: p.name, vendor: p.vendor }, state: null }; if (replace) o.fx[k] = nf; else o.fx.push(nf); this.changed({ graph: true, console: true }); DECK.render(); ARR.renderHeads(); this.openFx(o, replace ? k : o.fx.length - 1); };
+    const fx = PLUG.effects();
+    if (!fx.length) items.push({ label: PLUG.list.length ? 'No effects found' : 'Find my plug-ins…', act: async () => { await PLUG.scan(); } });
+    else {
+      // group by maker when there are many
+      const byV = new Map(); fx.forEach((p) => { const v = p.vendor || 'Other'; if (!byV.has(v)) byV.set(v, []); byV.get(v).push(p); });
+      if (fx.length <= 14) fx.forEach((p) => items.push({ label: p.name, act: () => add(p) }));
+      else for (const [v, list] of byV) items.push({ label: v + ' ›', sub: list.map((p) => ({ label: p.name, act: () => add(p) })), act: (e) => K.menu([{ head: v }, ...list.map((p) => ({ label: p.name, act: () => add(p) }))], innerWidth / 2 - 120, 120) });
+      items.push({ label: 'Rescan plug-ins…', act: () => PLUG.scan() });
+    }
+    return items;
+  },
+  plugInstItems() {
+    if (!PLUG.ok) return [];
+    const ins = PLUG.instruments();
+    if (!ins.length) return [{ label: 'Add VST3 instrument track… (find my plug-ins)', act: async () => { await PLUG.scan(); if (PLUG.instruments().length) K.menu([{ head: 'VST3 instruments' }, ...this.plugInstList()], innerWidth / 2 - 120, 120); } }];
+    return [{ label: 'Add VST3 instrument track…', act: () => K.menu([{ head: 'VST3 instruments' }, ...this.plugInstList()], innerWidth / 2 - 120, 120) }];
+  },
+  plugInstList() { return PLUG.instruments().map((p) => ({ label: p.name + (p.vendor ? ' — ' + p.vendor : ''), act: () => this.addPlugInstTrack(p) })); },
+  addPlugInstTrack(p) {
+    const inst = INST.make('vst3'); inst.plug = { path: p.path, cid: p.cid, name: p.name, vendor: p.vendor };
+    const t = this.addTrack({ kind: 'inst', inst, stereo: true, input: '1+2', name: p.name.slice(0, 24) });
+    this.newPatternFor(t, true);
+    this.ui.patTrack = t.id;
+    setTimeout(() => PLUG.openEditor(t.inst), 300);
+    return t;
+  },
   // grouped "add an effect" items
   fxItems(o, k, replace) {
     const items = [];
     for (const [g, all] of FX.GROUPS) {
       const keys = all.filter((key) => !FX.types[key].suite || SUITE.has(FX.types[key].suite)); if (!keys.length) continue;
       items.push({ head: g });
-      for (const key of keys) items.push({ label: FX.types[key].name, act: () => { this.commit('Insert FX'); const nf = { id: U.uid('f'), type: key, on: true, p: FX.defaults(key) }; if (replace) o.fx[k] = nf; else o.fx.push(nf); this.changed({ graph: true, console: true }); DECK.render(); ARR.renderHeads(); this.openFx(o, replace ? k : o.fx.length - 1); } });
+      for (const key of keys) if (!FX.types[key].plugin) items.push({ label: FX.types[key].name, act: () => { this.commit('Insert FX'); const nf = { id: U.uid('f'), type: key, on: true, p: FX.defaults(key) }; if (replace) o.fx[k] = nf; else o.fx.push(nf); this.changed({ graph: true, console: true }); DECK.render(); ARR.renderHeads(); this.openFx(o, replace ? k : o.fx.length - 1); } });
     }
-    return items;
+    return items.concat(this.plugFxItems(o, k, replace));
   },
   closeFx() { if (this.fxWin) { this.fxWin.close(); this.fxWin = null; } },
   setInput(t, v) { this.commit('Track input'); t.input = v; t.stereo = v === '1+2'; this.changed({ graph: true, heads: true, console: true }); this.eng.updateMonitors(); },
@@ -1216,7 +1276,35 @@ const A = {
       K.row('Nudge (ms)', nudge), latInfo,
       K.row('Metronome level', cv), K.row('Look', theme), K.row('Film grain', grain),
       h('div', { class: 'note' }, 'Tip: for a USB audio interface, choose it as both input and output. Inputs 1 and 2 are the interface’s first two channels.'),
+      ...this.plugSettings(),
     ], [{ label: 'Done', primary: true }], { width: 'min(620px,100%)' });
+  },
+  // Settings › Plug-ins (desktop builds)
+  plugSettings() {
+    if (!PLUG.ok) return [];
+    const h = K.h, S = this.settings;
+    S.plugDirs = S.plugDirs || [];
+    const dirs = h('div', { class: 'note' });
+    const info = h('div', { class: 'note' });
+    const showInfo = () => { info.textContent = PLUG.effects().length + ' effects and ' + PLUG.instruments().length + ' instruments' + (PLUG.failed.length ? ' · ' + PLUG.failed.length + ' could not load: ' + PLUG.failed.slice(0, 4).map((f) => f.path.split(/[\\/]/).pop()).join(', ') + (PLUG.failed.length > 4 ? '…' : '') : '') + '. The standard VST3 folders are always searched.'; };
+    const showDirs = () => {
+      dirs.textContent = '';
+      if (!S.plugDirs.length) dirs.append('No extra folders.');
+      S.plugDirs.forEach((d, i) => { const x = h('button', { class: 'btn sm', title: 'Stop searching this folder' }, '×'); x.addEventListener('click', () => { S.plugDirs.splice(i, 1); this.saveSettings(); showDirs(); }); dirs.append(h('div', { style: 'display:flex;gap:6px;align-items:center' }, h('span', null, d), x)); });
+    };
+    showDirs(); showInfo();
+    const addDir = h('button', { class: 'btn' }, 'Add a folder…');
+    addDir.addEventListener('click', async () => { const d = await window.dawNative.plugins.pickFolder(); if (d && !S.plugDirs.includes(d)) { S.plugDirs.push(d); this.saveSettings(); showDirs(); await PLUG.scan(); showInfo(); } });
+    const rescan = h('button', { class: 'btn' }, 'Rescan');
+    rescan.addEventListener('click', async () => { rescan.textContent = 'Scanning…'; await PLUG.scan(true); rescan.textContent = 'Rescan'; showInfo(); });
+    const ms = (b) => (b * 128 / this.eng.sr * 1000).toFixed(1) + ' ms';
+    const buf = K.select([[2, 'Tightest'], [4, 'Tight'], [8, 'Safe (default)'], [16, 'Safest']].map(([b, n]) => [b, n + ' · ' + ms(b)]), S.plugBlocks || 8, (v) => { S.plugBlocks = +v; this.saveSettings(); K.toast('Applies to plug-ins as they are next loaded (reopen the song to apply everywhere)'); });
+    return [
+      h('div', { class: 'note', style: 'margin-top:10px;font-weight:600' }, 'VST3 plug-ins'),
+      K.row('Plug-in folders', h('div', { style: 'display:flex;gap:8px;flex-wrap:wrap' }, addDir, rescan)), dirs, info,
+      K.row('Plug-in buffer', buf),
+      h('div', { class: 'note' }, 'Plug-ins run in their own process, so one that crashes can’t take your song with it. A smaller buffer plays VST instruments with less delay; raise it if you hear clicks. Delay is compensated on every track.'),
+    ];
   },
   // ---------- menus ----------
   menuFile() {
@@ -1275,6 +1363,7 @@ const A = {
       { label: 'Add sampler track', act: () => this.addInstTrack('sampler') },
       { label: 'Add Eleosynth track', disabled: !SUITE.has('eleo'), act: () => this.addInstTrack('eleo') },
       { label: "Add Beat track (Esperanza's Drum Kit)", disabled: !SUITE.has('edk'), act: () => this.addBeatTrack() },
+      ...this.plugInstItems(),
       t && t.kind === 'beat' ? { label: "Open Esperanza's Drum Kit for “" + t.name + '”', act: () => SUITE.open(t) } : null,
       t && t.kind === 'inst' ? { label: 'Instrument for “' + t.name + '”…', act: () => INSTUI.open(t) } : null,
       { label: 'Panic — silence all instruments', act: () => this.eng.panicInst() },

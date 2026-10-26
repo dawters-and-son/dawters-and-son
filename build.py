@@ -11,8 +11,8 @@ def font(m):
     data = open(os.path.join(ROOT, 'src', 'fonts', m.group(1) + '.woff2'), 'rb').read()
     return 'url(data:font/woff2;base64,' + base64.b64encode(data).decode() + ')'
 css = re.sub(r'url\(FONT:([\w-]+)\)', font, css)
-worklet = S('worklet.js') + '\n' + S('inst-worklet.js') + '\n' + S('fx-worklet.js')
-js = '"use strict";\nconst WORKLET_SRC = ' + json.dumps(worklet) + ';\nconst FFW_SRC = ' + json.dumps(S('ff/ffmpeg-worker.js')) + ';\n' + 'const LICENSE_TXT = ' + json.dumps(open(os.path.join(ROOT, 'LICENSE'), encoding='utf-8').read()) + ';\nconst SOURCE_URL = ' + json.dumps(SOURCE_URL) + ';\n' + '\n'.join(S(f) for f in ['util.js', 'instruments.js', 'model.js', 'fx.js', 'suite.js', 'engine.js', 'kit.js', 'arrange.js', 'console.js', 'deck.js', 'pattern.js', 'matrix.js', 'encode.js', 'master.js', 'denoise.js', 'tuner.js', 'audition.js', 'app.js'])
+worklet = S('worklet.js') + '\n' + S('inst-worklet.js') + '\n' + S('fx-worklet.js') + '\n' + S('plug-worklet.js')
+js = '"use strict";\nconst WORKLET_SRC = ' + json.dumps(worklet) + ';\nconst FFW_SRC = ' + json.dumps(S('ff/ffmpeg-worker.js')) + ';\n' + 'const LICENSE_TXT = ' + json.dumps(open(os.path.join(ROOT, 'LICENSE'), encoding='utf-8').read()) + ';\nconst SOURCE_URL = ' + json.dumps(SOURCE_URL) + ';\n' + '\n'.join(S(f) for f in ['util.js', 'instruments.js', 'model.js', 'fx.js', 'suite.js', 'plugins.js', 'engine.js', 'kit.js', 'arrange.js', 'console.js', 'deck.js', 'pattern.js', 'matrix.js', 'encode.js', 'master.js', 'denoise.js', 'tuner.js', 'audition.js', 'app.js'])
 js = js.replace("'use strict';", '')
 icon = 'data:image/svg+xml;base64,' + base64.b64encode(open(os.path.join(ROOT, 'src', 'icon.svg'), 'rb').read()).decode()
 html = S('index.html').replace('/*CSS*/', css).replace('/*JS*/', js.replace('</script', '<\\/script')).replace('ICON_DATAURL', icon)

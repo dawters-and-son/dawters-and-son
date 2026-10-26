@@ -179,7 +179,7 @@ const CON = {
     const fxs = [];
     for (let k = 0; k < M.NFX; k++) {
       const f = o.fx[k];
-      const b = K.h('button', { class: 'slot' + (f ? '' : ' empty') + (f && !f.on ? ' off' : ''), title: f ? FX.types[f.type].name : 'Add an effect' }, f ? FX.types[f.type].short : '+ insert');
+      const b = K.h('button', { class: 'slot' + (f ? '' : ' empty') + (f && !f.on ? ' off' : ''), title: f ? (f.plug ? PLUG.label(f.plug) : FX.types[f.type].name) : 'Add an effect' }, f ? (f.plug ? f.plug.name.slice(0, 12) : FX.types[f.type].short) : '+ insert');
       b.addEventListener('click', (e) => (f ? A.openFx(o, k) : this.fxMenu(o, k, e)));
       b.addEventListener('contextmenu', (e) => { e.preventDefault(); this.fxMenu(o, k, e); });
       fxs.push(b);

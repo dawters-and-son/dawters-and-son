@@ -20,7 +20,10 @@ permissions:
 concurrency:
   group: release-${{ github.event.inputs.tag || github.ref_name }}
 jobs:
+  plughost:
+    uses: ./.github/workflows/plughost.yml
   release:
+    needs: plughost
     runs-on: ubuntu-24.04
     env:
       TAG: ${{ github.event.inputs.tag || github.ref_name }}
@@ -58,6 +61,19 @@ jobs:
           cp "$RUNNER_TEMP"/ff/ffmpeg-installer-win32-x64-*/package/ffmpeg.exe win/ffmpeg/ffmpeg.exe
           cp "$RUNNER_TEMP"/ff/ffmpeg-installer-linux-x64-*/package/ffmpeg linux/ffmpeg/ffmpeg
           chmod +x mac/ffmpeg/ffmpeg linux/ffmpeg/ffmpeg
+      - name: The VST3 plug-in host for each desktop app
+        uses: actions/download-artifact@v4
+        with:
+          pattern: plughost-*
+          path: ${{ runner.temp }}/plughost
+      - name: Put the plug-in hosts in place
+        run: |
+          mkdir -p mac/plughost win/plughost linux/plughost
+          cp "$RUNNER_TEMP"/plughost/plughost-mac/* mac/plughost/
+          cp "$RUNNER_TEMP"/plughost/plughost-windows/* win/plughost/
+          cp "$RUNNER_TEMP"/plughost/plughost-linux/* linux/plughost/
+          chmod +x mac/plughost/dawters-plughost linux/plughost/dawters-plughost
+          ls -la mac/plughost win/plughost linux/plughost
       - name: Android release key
         env:
           KS_B64: ${{ secrets.DAWTERS_KEYSTORE_B64 }}

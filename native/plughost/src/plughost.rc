@@ -1,0 +1,26 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Josh Wilk. Part of DAWters and Son; see LICENSE for terms (no warranty).
+#include <winver.h>
+1 ICON "../../../build/icons/dawters.ico"
+VS_VERSION_INFO VERSIONINFO
+FILEVERSION 1,0,0,0
+PRODUCTVERSION 1,0,0,0
+FILETYPE VFT_APP
+BEGIN
+  BLOCK "StringFileInfo"
+  BEGIN
+    BLOCK "040904b0"
+    BEGIN
+      VALUE "CompanyName", "DAWters and Son"
+      VALUE "FileDescription", "DAWters and Son plug-in host"
+      VALUE "FileVersion", "1.0.0"
+      VALUE "ProductName", "DAWters and Son"
+      VALUE "LegalCopyright", "Copyright (C) 2026 Josh Wilk. GPL-3.0-or-later."
+      VALUE "OriginalFilename", "dawters-plughost.exe"
+    END
+  END
+  BLOCK "VarFileInfo"
+  BEGIN
+    VALUE "Translation", 0x409, 1200
+  END
+END

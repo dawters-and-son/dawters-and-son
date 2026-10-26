@@ -12,7 +12,7 @@ const V = require(path.join(__dirname, '..', 'mac', 'app', 'package.json')).vers
     name: 'DAWters and Son', executableName: 'DAWters and Son', appVersion: V, buildVersion: V,
     icon: path.join(__dirname, '..', 'build', 'icons', 'dawters.ico'), asar: true, prune: false,
     appCopyright: 'Copyright © 2026 Josh Wilk. Free software under the GNU GPL v3 or later.',
-    extraResource: [path.join(__dirname, 'ffmpeg', 'ffmpeg.exe'), path.join(__dirname, '..', 'build', 'icons', 'tuner.ico')],
+    extraResource: [path.join(__dirname, 'ffmpeg', 'ffmpeg.exe'), path.join(__dirname, '..', 'build', 'icons', 'tuner.ico'), ...(require('fs').existsSync(path.join(__dirname, 'plughost')) ? [path.join(__dirname, 'plughost')] : [])],
     win32metadata: { CompanyName: 'DAWters and Son', ProductName: 'DAWters and Son', FileDescription: 'DAWters and Son — multitrack studio', OriginalFilename: 'DAWters and Son.exe', InternalName: 'DAWters and Son' },
   });
   console.log(out);

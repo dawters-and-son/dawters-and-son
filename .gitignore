@@ -18,6 +18,10 @@ node_modules/
 mac/ffmpeg/
 win/ffmpeg/
 linux/ffmpeg/
+# the VST3 plug-in host, built per platform by .github/workflows/plughost.yml
+mac/plughost/
+win/plughost/
+linux/plughost/
 # signing keys and secrets: never commit these
 *.keystore
 *.jks

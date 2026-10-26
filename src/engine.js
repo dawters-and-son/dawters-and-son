@@ -45,6 +45,7 @@ class Graph {
     this.chainFx(this.mFx, proj.master.fx || [], this.mIn, this.mChan);
     for (const t of proj.tracks) { this.trackFx(t); this.trackRouting(t); this.trackParams(t); if (t.kind === 'inst') this.instParams(t); }
     this.mutes();
+    this.applyPdc();
     void first;
   }
   addTrack(t) {
@@ -52,7 +53,9 @@ class Graph {
     const muted = this.isMuted(t);
     const n = { in: ctx.createGain(), chan: WNODE(ctx, 'ds-channel', 1, { kind: 'track', meter, p: t.ch }), fader: WNODE(ctx, 'ds-fader', 2, { meter, mono: !t.stereo, mute: muted }),
       fx: [], fxSig: '', sends: [], route: '' };
-    n.in.connect(n.chan); n.chan.connect(n.fader);
+    // plug-in delay compensation: every track is held back so all of them line up with the latest one
+    n.pdcD = ctx.createDelay(2); n.pdcD.connect(n.fader);
+    n.in.connect(n.chan); n.chan.connect(n.pdcD);
     for (let i = 0; i < M.NSEND; i++) n.sends.push(ctx.createGain());
     if (t.kind === 'inst') this.makeInst(t, n);
     if (t.kind === 'beat') this.makeBeat(t, n);
@@ -64,8 +67,13 @@ class Graph {
     this.tracks.set(t.id, n);
   }
   makeInst(t, n) {
-    if (n.inst) { try { n.inst.disconnect(); } catch (e) { /* */ } n.inst.port.postMessage({ t: 'panic' }); }
+    if (n.inst) { try { n.inst.disconnect(); } catch (e) { /* */ } n.inst.port.postMessage({ t: 'panic' }); if (n.inst.plug) n.inst.plug.dispose(); }
     const ev = this.opt.instEvents && this.opt.instEvents[t.id];
+    if (t.inst.type === 'vst3') { // a VST3 instrument, running in the plug-in host
+      const w = PLUG.create(this.ctx, t.inst, { instrument: true, offline: this.offline, events: (ev || []).map((x) => [x[0], x[1] ? 1 : 0, 0, x[2], x[3]]) });
+      n.inst = { plug: w, port: w.node.port, connect: (d) => w.node.connect(d), disconnect: () => w.node.disconnect(), latency: () => w.latency() };
+      n.inst.connect(n.in); n.instSig = this.instSig(t); return;
+    }
     if (t.inst.type === 'eleo') { // Eleosynth, running in its own editor frame on our context
       n.inst = this.offline ? SUITE.offlineNode(t, this.ctx, { events: ev }) : SUITE.liveNode(t);
       n.inst.connect(n.in); n.instSig = this.instSig(t); return;
@@ -79,29 +87,29 @@ class Graph {
     n.inst = this.offline ? SUITE.offlineNode(t, this.ctx, this.opt.range || { s: 0, e: 0 }) : SUITE.liveNode(t);
     n.inst.connect(n.in);
   }
-  instSig(t) { return t.inst.type === 'eleo' ? 'eleo' : t.inst.type + '|' + (t.inst.sample || '') + '|' + JSON.stringify(t.inst.padSamples || {}); }
+  instSig(t) { return t.inst.type === 'vst3' ? 'vst3|' + (t.inst.plug ? t.inst.plug.cid : '') : t.inst.type === 'eleo' ? 'eleo' : t.inst.type + '|' + (t.inst.sample || '') + '|' + JSON.stringify(t.inst.padSamples || {}); }
   instParams(t) {
     const n = this.tracks.get(t.id); if (!n || t.kind !== 'inst') return;
     if (!n.inst || n.instSig !== this.instSig(t)) { this.makeInst(t, n); return; }
-    if (t.inst.type === 'eleo') return;
+    if (t.inst.type === 'eleo' || t.inst.type === 'vst3') return;
     n.inst.port.postMessage({ t: 'set', p: t.inst.p });
   }
   removeTrack(id) {
     const n = this.tracks.get(id); if (!n) return;
-    if (n.inst) { try { n.inst.disconnect(); } catch (e) { /* */ } }
-    [n.in, n.chan, n.fader, ...n.sends].forEach((x) => { try { x.disconnect(); } catch (e) { /* */ } });
+    if (n.inst) { try { n.inst.disconnect(); } catch (e) { /* */ } if (n.inst.plug) n.inst.plug.dispose(); }
+    [n.in, n.chan, n.pdcD, n.fader, ...n.sends].forEach((x) => { try { x.disconnect(); } catch (e) { /* */ } });
     n.fx.forEach((f) => f.dispose());
     this.tracks.delete(id);
   }
-  trackFx(t) { const n = this.tracks.get(t.id); if (n) this.chainFx(n, t.fx, n.chan, n.fader); }
+  trackFx(t) { const n = this.tracks.get(t.id); if (n) this.chainFx(n, t.fx, n.chan, n.pdcD); }
   // insert chain: src -> fx... -> dst, rebuilt only when the list of effects changes
   chainFx(n, list, src, dst) {
     const active = list.filter((f) => f && f.on && FX.types[f.type]);
-    const sig = active.map((f) => f.type + ':' + f.id).join(',');
+    const sig = active.map((f) => f.type + ':' + f.id + (f.plug ? ':' + f.plug.cid : '')).join(',');
     if (sig === n.fxSig && n.fxDst === dst) { active.forEach((f, i) => n.fx[i].set(Object.assign({}, f.p))); return; }
     try { src.disconnect(dst); } catch (e) { /* not connected directly */ }
     n.fx.forEach((f) => { try { src.disconnect(f.input); } catch (e) { /* */ } try { f.output.disconnect(); } catch (e) { /* */ } f.dispose(); });
-    n.fx = active.map((f) => { const o = FX.types[f.type].create(this.ctx, Object.assign({}, f.p), { bpm: this.proj.bpm, eng: this.eng, id: f.id, offline: this.offline }); o.id = f.id; return o; });
+    n.fx = active.map((f) => { const o = FX.types[f.type].create(this.ctx, Object.assign({}, f.p), { bpm: this.proj.bpm, eng: this.eng, id: f.id, offline: this.offline, owner: f }); o.id = f.id; return o; });
     let prev = src;
     n.fx.forEach((f) => { prev.connect(f.input); prev = f.output; });
     prev.connect(dst);
@@ -113,6 +121,36 @@ class Graph {
     const i = this.proj.buses.indexOf(o);
     if (i >= 0) return this.chainFx(this.buses[i], o.fx, this.buses[i].chan, this.buses[i].fader);
     if (o === this.proj.master) this.chainFx(this.mFx, o.fx, this.mIn, this.mChan);
+  }
+  // plug-in delay compensation: the delay each track's own inserts, instrument and mixbus add
+  pdc() {
+    const lat = (list) => list.reduce((a, f) => a + (f.latency ? f.latency() : 0), 0);
+    const busL = this.buses.map((b) => lat(b.fx));
+    const per = new Map(), bus = new Map(); let max = 0;
+    for (const t of this.proj.tracks) {
+      const n = this.tracks.get(t.id); if (!n) continue;
+      const bl = t.out && t.out.startsWith('bus') ? busL[+t.out.slice(3)] || 0 : 0;
+      const d = lat(n.fx) + (n.inst && n.inst.latency ? n.inst.latency() : 0) + bl;
+      per.set(t.id, d); bus.set(t.id, bl); if (d > max) max = d;
+    }
+    return { per, bus, max, master: lat(this.mFx.fx) };
+  }
+  // hold each track back by (latest - its own); tracks you're monitoring through are left alone (no added delay)
+  applyPdc() {
+    const P = this.pdc();
+    for (const t of this.proj.tracks) {
+      const n = this.tracks.get(t.id); if (!n) continue;
+      const d = !this.offline && t.mon ? 0 : Math.min(1.99, Math.max(0, P.max - (P.per.get(t.id) || 0)));
+      if (this.offline) n.pdcD.delayTime.setValueAtTime(d, 0); else if (Math.abs(n.pdcD.delayTime.value - d) > 1e-7) n.pdcD.delayTime.value = d;
+    }
+    this.pdcP = P;
+    return P;
+  }
+  pdcTotal() { const P = this.pdcP || this.pdc(); return P.max + P.master; }
+  plugWrappers() {
+    const out = [];
+    for (const n of [...this.tracks.values(), ...this.buses, this.mFx]) { for (const f of n.fx) if (f.plug) out.push(f.plug); if (n.inst && n.inst.plug) out.push(n.inst.plug); }
+    return out;
   }
   fxNode(id) { for (const n of [...this.tracks.values(), ...this.buses, this.mFx]) for (const f of n.fx) if (f.id === id) return f; return null; }
   tempo() { const all = [...this.tracks.values(), ...this.buses, this.mFx]; for (const n of all) n.fx.forEach((f) => f.tempo && f.tempo()); }
@@ -277,11 +315,27 @@ class Engine {
     this.killSources();
     const st = this.ctx.currentTime + 0.06;
     this.sp = t; this.sct = st; this.sct0 = st; this.fresh = true;
-    this.anchors = [{ ct: st, sp: t }];
-    this.capMark({ ct: st, sp: t });
+    const pd = this.graph.applyPdc(); this.pdcOut = pd.max + pd.master;
+    this.anchors = [{ ct: st + this.pdcOut, sp: t }];
+    this.capMark({ ct: st + this.pdcOut, sp: t });
+    this.plugTransport(st, t, true);
     this.tick();
   }
   reschedule() { if (this.playing) this.restartAt(this.pos() + 0.06); }
+  // VST3 plug-ins hear the song position and tempo (for synced delays, arpeggiators and the like)
+  plugTransport(ct, sp, playing) {
+    if (!PLUG.ok) return;
+    const ws = this.graph.plugWrappers(); if (!ws.length) return;
+    const P = this.proj, tp = { f0: Math.round(ct * this.sr), ppq: sp * P.bpm / 60, tempo: P.bpm, playing: !!playing, ts: (P.sig[0] & 255) | ((P.sig[1] & 255) << 8) };
+    ws.forEach((w) => w.transport(tp));
+  }
+  // a plug-in's latency changed (or one was added or removed): line the tracks up again
+  pdcChanged() {
+    if (!this.graph) return;
+    const P = this.graph.applyPdc(), tot = P.max + P.master;
+    if (this.playing && Math.abs(tot - (this.pdcOut || 0)) > 1e-6) this.restartAt(this.pos());
+    else if (!this.playing) this.pdcOut = tot;
+  }
   async stop() {
     if (this.recording) await this.stopRecording();
     if (!this.playing) { this.position = 0; this.emit('locate', 0); this.emit('state'); return; }
@@ -291,6 +345,7 @@ class Engine {
     const mxOn = Object.keys(this.matrix.active).length || Object.keys(this.matrix.queue).length;
     if (mxOn) { if (this.onMatrixRec) for (const id in this.matrix.active) this.onMatrixRec(id, this.matrix.active[id], this.matrix.active[id].until !== undefined ? Math.min(this.matrix.active[id].until, this.position) : this.position); this.matrix = { active: {}, queue: {} }; }
     this.playing = false; this.capMark({ ct: this.ctx.currentTime, stop: true });
+    this.plugTransport(this.ctx.currentTime, this.position, false);
     this.killSources();
     if (this.position < 0) this.position = 0;
     this.graph.sync(this.proj);
@@ -318,7 +373,8 @@ class Engine {
       if (looping && b >= L.e) {
         this.window(this.graph, ctx, a, L.e, this.sct, this.fresh, L.e, true);
         this.sct += L.e - a; this.sp = L.s; this.fresh = true;
-        this.anchors.push({ ct: this.sct, sp: L.s }); this.capMark({ ct: this.sct, sp: L.s });
+        this.anchors.push({ ct: this.sct + (this.pdcOut || 0), sp: L.s }); this.capMark({ ct: this.sct + (this.pdcOut || 0), sp: L.s });
+        this.plugTransport(this.sct, L.s, true);
         if (this.anchors.length > 64) this.anchors.splice(0, this.anchors.length - 64);
       } else {
         this.window(this.graph, ctx, a, b, this.sct, this.fresh, looping ? L.e : Infinity, false);
@@ -332,6 +388,7 @@ class Engine {
   // schedule everything that happens in song window [a,b) beginning at ctx time ca
   window(graph, ctx, a, b, ca, fresh, cap, endsAtLoop) {
     const live = graph === this.graph;
+    const P = graph.pdcP || graph.applyPdc();
     for (const t of this.proj.tracks) {
       const n = graph.tracks.get(t.id); if (!n) continue;
       if (t.kind === 'inst' && live && n.inst) {
@@ -358,9 +415,10 @@ class Engine {
       for (const k of ['vol', 'pan']) {
         const env = t.env[k]; if (!env.on) continue;
         const par = n.fader.parameters.get(k === 'vol' ? 'gain' : 'pan'), def = k === 'vol' ? 1 : 0;
-        if (fresh) { par.cancelScheduledValues(ca); par.setValueAtTime(M.envAt(env, a, def), ca); }
-        for (const p of env.pts) if (p.t > a && p.t < b) par.linearRampToValueAtTime(p.v, ca + (p.t - a));
-        if (endsAtLoop || b === cap) par.linearRampToValueAtTime(M.envAt(env, b, def), ca + (b - a) - 1e-4);
+        const ce = ca + P.max - (P.bus.get(t.id) || 0); // the fader hears the track after its line-up delay
+        if (fresh) { par.cancelScheduledValues(ce); par.setValueAtTime(M.envAt(env, a, def), ce); }
+        for (const p of env.pts) if (p.t > a && p.t < b) par.linearRampToValueAtTime(p.v, ce + (p.t - a));
+        if (endsAtLoop || b === cap) par.linearRampToValueAtTime(M.envAt(env, b, def), ce + (b - a) - 1e-4);
       }
     }
     // metronome / count-in
@@ -372,7 +430,7 @@ class Engine {
           const tt = k * beat;
           if (!(st.click || (this.countIn && tt < countTo - 1e-6))) continue;
           const s = ctx.createBufferSource(); s.buffer = ((k % bpb) + bpb) % bpb === 0 ? this.clickHi : this.clickLo;
-          s.connect(this.clickOut); s.start(ca + (tt - a));
+          s.connect(this.clickOut); s.start(ca + (tt - a) + P.max + P.master);
         }
       }
     }
@@ -534,7 +592,7 @@ class Engine {
     else if (st === 0xb0 && d[1] === 64) { const on = d[2] >= 64; if (!on && this.sustain) { for (const n of this.sustained) this.liveNote(target, false, n, 0); this.sustained.clear(); } this.sustain = on; }
     else if (st === 0xb0 && (d[1] === 123 || d[1] === 120)) this.panicInst();
   }
-  setBpm(bpm) { this.proj.bpm = bpm; this.graph.tempo(); SUITE.tempo(bpm); this.reschedule(); }
+  setBpm(bpm) { this.proj.bpm = bpm; this.graph.tempo(); SUITE.tempo(bpm); if (!this.playing) this.plugTransport(this.ctx.currentTime, this.position, false); this.reschedule(); }
   // ------- input & recording -------
   async listInputs() {
     try { const d = await navigator.mediaDevices.enumerateDevices(); return { ins: d.filter((x) => x.kind === 'audioinput'), outs: d.filter((x) => x.kind === 'audiooutput') }; } catch (e) { return { ins: [], outs: [] }; }
@@ -708,20 +766,37 @@ class Engine {
   // ------- offline rendering -------
   async render(o) {
     const sr = o.sr || this.sr, s = o.s, e = o.e, tail = o.tail || 0;
-    const lat = this.limLatency(sr, o.bypassMaster, o.ceiling !== undefined);
+    let lat = this.limLatency(sr, o.bypassMaster, o.ceiling !== undefined);
     const len = Math.max(1, Math.ceil((e - s + tail) * sr));
-    const oc = new OfflineAudioContext(2, len + lat, sr);
+    // VST3 plug-ins add a known delay that is lined up across tracks and trimmed off the front; the most it can be
+    const plugs = PLUG.ok && this.usesPlugins();
+    const extra = plugs ? Math.ceil(sr * 2) : 0;
+    const oc = new OfflineAudioContext(2, len + lat + extra, sr);
     await oc.audioWorklet.addModule(this.wurl);
     SUITE.markLoaded(oc, 'ds-core');
     const g = new Graph(this, oc, this.proj, true, { solo: o.solo, only: o.only, busOnly: o.busOnly, bypassMaster: o.bypassMaster, driveDb: o.driveDb, ceiling: o.ceiling, instEvents: this.instEventsAll(s, e + tail, e, sr), range: { s, e } });
     this.window(g, oc, s, e + tail, 0, true, e, false);
     await SUITE.settle(oc); // Eleosynth and Esperanza's Drum Kit build their engines on this context first
+    if (plugs && PLUG.has(oc)) {
+      await PLUG.settle(oc);
+      const P = g.applyPdc();
+      lat += Math.round((P.max + P.master) * sr);
+      if (lat > len + extra) lat = Math.min(lat, len + extra - 1);
+      // the plug-ins answer a few blocks behind; pause the render every so often until they've caught up
+      const step = PLUG.BLOCKS_OFFLINE * 128, total = len + extra + this.limLatency(sr, o.bypassMaster, o.ceiling !== undefined);
+      for (let f = step; f < total; f += step) oc.suspend(f / sr).then(async () => { await PLUG.drain(oc); oc.resume(); });
+    }
     const raw = await oc.startRendering();
     g.dispose();
-    if (!lat) return raw;
+    PLUG.disposeCtx(oc);
+    if (!lat && !extra) return raw;
     const buf = new AudioBuffer({ length: len, numberOfChannels: 2, sampleRate: sr });
     for (let c = 0; c < 2; c++) buf.copyToChannel(raw.getChannelData(c).subarray(lat, lat + len), c);
     return buf;
+  }
+  usesPlugins() {
+    const P = this.proj, has = (o) => (o.fx || []).some((f) => f && f.type === 'vst3' && f.on);
+    return P.tracks.some((t) => has(t) || (t.kind === 'inst' && t.inst && t.inst.type === 'vst3')) || P.buses.some(has) || has(P.master);
   }
   // the master limiter looks ahead; its delay is compensated in renders and recording offsets
   limLatency(sr, bypass, forceLim) { const m = this.proj.master.ch; return !bypass && (forceLim || (m.limOn && !m.bypass)) ? Math.max(8, Math.round(sr * 0.0015)) : 0;
