@@ -39,7 +39,7 @@ jobs:
       - name: Build the plug-in host
         shell: bash
         run: |
-          annotate() { "$@" > "$RUNNER_TEMP/step.log" 2>&1; rc=$?; cat "$RUNNER_TEMP/step.log"; if [ $rc -ne 0 ]; then grep -iE "error|undefined|fatal" "$RUNNER_TEMP/step.log" | grep -v "warning" | head -25 | while IFS= read -r l; do echo "::error::${l:0:900}"; done; fi; return $rc; }
+          annotate() { rc=0; "$@" > "$RUNNER_TEMP/step.log" 2>&1 || rc=$?; cat "$RUNNER_TEMP/step.log"; if [ $rc -ne 0 ]; then { grep -iE "error|undefined|fatal" "$RUNNER_TEMP/step.log" | grep -iv "warning" | head -25; tail -n 8 "$RUNNER_TEMP/step.log"; } | while IFS= read -r l; do echo "::error::${l:0:900}"; done; fi; return $rc; }
           ARGS=()
           [ "$RUNNER_OS" = macOS ] && ARGS+=("-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64")
           annotate cmake -S native/plughost -B "$RUNNER_TEMP/ph" -DCMAKE_BUILD_TYPE=Release -DVST3_SDK_ROOT="$RUNNER_TEMP/vst3sdk" "${ARGS[@]}"
@@ -53,7 +53,7 @@ jobs:
       - name: Build the SDK's sample plug-ins to test with
         shell: bash
         run: |
-          annotate() { "$@" > "$RUNNER_TEMP/step.log" 2>&1; rc=$?; cat "$RUNNER_TEMP/step.log"; if [ $rc -ne 0 ]; then grep -iE "error|undefined|fatal" "$RUNNER_TEMP/step.log" | grep -v "warning" | head -25 | while IFS= read -r l; do echo "::error::${l:0:900}"; done; fi; return $rc; }
+          annotate() { rc=0; "$@" > "$RUNNER_TEMP/step.log" 2>&1 || rc=$?; cat "$RUNNER_TEMP/step.log"; if [ $rc -ne 0 ]; then { grep -iE "error|undefined|fatal" "$RUNNER_TEMP/step.log" | grep -iv "warning" | head -25; tail -n 8 "$RUNNER_TEMP/step.log"; } | while IFS= read -r l; do echo "::error::${l:0:900}"; done; fi; return $rc; }
           annotate cmake -S "$RUNNER_TEMP/vst3sdk" -B "$RUNNER_TEMP/sdkb" -DCMAKE_BUILD_TYPE=Release -DSMTG_CREATE_PLUGIN_LINK=OFF \
             -DSMTG_RUN_VST_VALIDATOR=OFF -DSMTG_ENABLE_VST3_HOSTING_EXAMPLES=OFF -DSMTG_ENABLE_AUV2_BUILDS=OFF
           annotate cmake --build "$RUNNER_TEMP/sdkb" --config Release --parallel 4 --target again adelay mda-vst3 note-expression-synth
