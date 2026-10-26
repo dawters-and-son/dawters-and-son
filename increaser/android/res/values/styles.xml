@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <style name="AppTheme" parent="@android:style/Theme.Material.Light.NoActionBar">
+    <item name="android:windowBackground">@color/paper</item>
+    <item name="android:statusBarColor">@color/band</item>
+    <item name="android:navigationBarColor">@color/band</item>
+    <item name="android:windowLightStatusBar">false</item>
+    <item name="android:colorAccent">@color/cup</item>
+  </style>
+  <color name="paper">#F3EEE4</color>
+  <color name="band">#14100C</color>
+  <color name="cup">#D2121E</color>
+</resources>

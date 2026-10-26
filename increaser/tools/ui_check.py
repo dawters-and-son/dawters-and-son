@@ -81,7 +81,7 @@ with sync_playwright() as p:
     # 3. increase mode on cup 3: three passes, three layers
     page.click('.tabs >> text=Punch')
     page.click('.pane >> text=Passes')
-    page.select_option('.pane >> select >> nth=0', '3')
+    page.select_option('#passSel', '3')
     page.click('.tabs >> text=Input'); page.click('.pane >> text=Test band')
     page.keyboard.press('Digit3'); page.keyboard.press('Space')
     until(page, "window.__inc.tracks[2].active.length === 3 && !window.__inc.T.recs.length", 14000)

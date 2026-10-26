@@ -51,7 +51,7 @@ with sync_playwright() as pw:
     # 3. stop when I stop, with count-in, on cup 3
     pg.click('.pane >> text=Count-in')
     pg.click('.pane >> text=I stop')
-    pg.select_option('.pane select >> nth=0', '0.5')
+    pg.select_option('#silSel', '0.5')
     pg.evaluate(f"{I}.select(2)")
     pg.keyboard.press('Space')
     ok(until(pg, f"{I}.T.recs.length && {I}.T.recs[0].on", 4000), 'stop when I stop: take running')
@@ -63,7 +63,7 @@ with sync_playwright() as pw:
     ok(n3 >= 1, 'stop when I stop: kept %d layer(s)' % n3)
     # 4. keep the last layer: every pass replaces the one before
     pg.evaluate(f"{I}.select(3)")
-    pg.select_option('.pane select >> nth=1', '1')
+    pg.select_option('#keepSel', '1')
     pg.click('.pane >> text=My press')
     pg.evaluate(f"{I}.S.test = 5; {I}.send({{c:'set', test:5}})")
     pg.keyboard.press('Space')

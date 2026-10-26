@@ -36,6 +36,7 @@ const DEFAULTS = {
   latAuto: true, latOffsetMs: 0, latCalMs: null, theme: '', master: 0.9, tab: 'punch',
   bindings: null, recipe: null, buildBars: 4,
   startOn: 'count', silHold: 1, gate: false,
+  grace: 0.25, fadeBars: 4, stopMode: 'now', capBars: 0, capQuant: 'bar',
 };
 const S = Object.assign({}, DEFAULTS);
 try { Object.assign(S, JSON.parse(localStorage.getItem('increaser.prefs') || '{}')); } catch (e) {}
@@ -190,6 +191,9 @@ function onMsg(m) {
     case 'cap': cap.chunks.push([m.L, m.R]); cap.frames += m.L.length; break;
     case 'capEnd': finishCapture(); break;
     case 'calib': calibDone(m); break;
+    case 'retroFail': toast(m.why === 'noloop' ? 'Capture needs a loop length first' : 'Not enough played yet — Capture keeps the last full ' + (S.capBars ? S.capBars + ' bars' : 'loop')); break;
+    case 'fadeDone': build.stop(true); T.playing = false; stopPending = false; toast('Faded out'); renderDeck(); break;
+    case 'stopped': stopPending = false; break;
     case 'rampDone': toast('Tempo ramp finished at ' + (m.r * loop.baseTempo).toFixed(1) + ' BPM'); break;
   }
 }
@@ -221,7 +225,7 @@ async function record(t, extra = {}) {
   const g = grid();
   const lead = Math.round(S.lead * g.beat);
   const tag = extra.tag || ('u' + Math.random().toString(36).slice(2, 7));
-  const base = Object.assign({ c: 'arm', track: t, lead, tag, replace: S.replace, quant: S.quantIn, gate: S.gate ? thrLin() : 0 }, extra);
+  const base = Object.assign({ c: 'arm', track: t, lead, tag, replace: S.replace, quant: S.quantIn, gate: S.gate ? thrLin() : 0, grace: Math.round(S.grace * g.beat) }, extra);
   const sound = S.startOn === 'sound' && !extra.noTrigger;
   if (S.punchOut === 'silence' && (loop.L || S.mode === 'sync') && base.silStop == null) { base.silStop = silFrames(); base.silQ = S.outQuant === 'now' ? 'beat' : S.outQuant; }
   if (!loop.L) {
@@ -248,7 +252,42 @@ async function record(t, extra = {}) {
   return tag;
 }
 
-function punchOut(t) { send({ c: 'punchOut', track: t, quant: S.outQuant }); }
+function punchOut(t) { send({ c: 'punchOut', track: t, quant: S.outQuant, grace: Math.round(S.grace * grid().beat) }); }
+
+// ---- Capture: keep what you just played (retrospective recording) ----
+async function capture(t = sel) {
+  await ensureAudio(); if (!(await openMic())) return;
+  if (!loop.L || !T.playing) {
+    if (!loop.L && S.mode === 'free') return toast('Capture needs a tempo: record the first loop, or switch the first loop to Sync and press Play');
+    if (!T.playing) { await startGrid(); return toast('The grid is running — play along, then press Capture to keep the last ' + (S.capBars || loop.loopBars) + ' bars'); }
+  }
+  const g = grid();
+  send({ c: 'retro', track: t, quant: S.capQuant, len: S.capBars ? S.capBars * g.bar : 0, replace: S.replace, gate: S.gate ? thrLin() : 0 });
+  const b = $('bCap'); b.classList.add('flash'); setTimeout(() => b.classList.remove('flash'), 300);
+}
+async function startGrid() {
+  if (!loop.L) defineSyncLoop();
+  pushAll();
+  if (!tracks.some(x => x.active.length) && !S.click) { S.click = true; pushAll(); renderDeck(); }
+  send({ c: 'play', G: 0 }); T.playing = true;
+}
+
+// ---- Ending: the big Fade out button, and when Stop stops ----
+async function fadeOut() {
+  await ensureAudio();
+  if (!T.playing) return toast('Nothing is playing');
+  if (T.fade >= 0) { send({ c: 'fadeOut', cancel: true }); toast('Fade cancelled'); return; }
+  send({ c: 'fadeOut', bars: S.fadeBars }); T.fade = 0;
+  toast(`Fading out over ${S.fadeBars} bar${S.fadeBars > 1 ? 's' : ''} — press again to cancel`);
+}
+let stopPending = false;
+function stopAt() {
+  const g = grid();
+  if (S.stopMode === 'now' || !loop.L || stopPending) { send({ c: 'clearEvents' }); send({ c: 'stop' }); build.stop(true); T.playing = false; stopPending = false; return; }
+  const Q = S.stopMode === 'loop' ? g.L : g.bar, G = Gnow();
+  send({ c: 'at', G: Math.ceil((G + 64) / Q) * Q, cmd: { c: 'stop' }, tag: 'stopAt' });
+  stopPending = true; toast('Stopping at the end of the ' + (S.stopMode === 'loop' ? 'loop' : 'bar') + ' — press again to stop now');
+}
 
 async function main(t = sel) {
   const r = recOf(t);
@@ -258,8 +297,9 @@ async function main(t = sel) {
 
 async function playStop() {
   await ensureAudio();
-  if (T.playing) { send({ c: 'stop' }); build.stop(true); T.playing = false; }
+  if (T.playing) stopAt();
   else if (loop.L) { send({ c: 'play', G: 0 }); T.playing = true; }
+  else if (S.mode === 'sync') { await startGrid(); toast('Grid running at ' + S.tempo.toFixed(1) + ' BPM — play along and press Capture, or Increase to punch in'); }
   else toast('Nothing to play yet — press Increase to record the first loop');
 }
 
@@ -731,6 +771,8 @@ function renderDeck() {
   const segm = $('segMode');
   for (const b of segm.children) { b.disabled = !!loop.L; }
   $('bClick').classList.toggle('on', S.click);
+  $('fadeH').textContent = T.fade >= 0 ? 'cancel' : S.fadeBars + (S.fadeBars > 1 ? ' bars' : ' bar');
+  $('capH').textContent = S.capBars ? S.capBars + (S.capBars > 1 ? ' bars' : ' bar') : 'last loop';
   $('held').textContent = T.pendingR ? 'tempo ' + (T.pendingR * loop.baseTempo).toFixed(1) + ' after this take' : (T.ramp ? 'ramping → ' + (T.ramp.r1 * loop.baseTempo).toFixed(1) : (loop.L && Math.abs(T.r - 1) > 0.0005 ? 'recorded at ' + loop.baseTempo.toFixed(1) : ''));
 }
 function renderPos(G) {
@@ -794,16 +836,22 @@ function panePunch(p) {
     S.startOn === 'count' ? row('Count-in', seg([[0, 'None'], [1, '1'], [2, '2'], [4, '4'], [8, '8']], S.lead, v => upd('lead', v)), h('span', { class: 'note' }, 'beats')) : null,
     S.startOn === 'count' ? row('Punch in on', seg([['beat', 'Beat'], ['bar', 'Bar'], ['loop', 'Loop top']], S.quantIn, v => upd('quantIn', v))) : null,
     S.startOn === 'count' ? sw('Click the lead-in beats', 'leadClick') : null,
+    row('Late-press grace', sel_([[0, 'Off'], [0.125, '1/32 note'], [0.25, '1/16 note'], [0.5, '1/8 note']], S.grace, v => upd('grace', +v))),
+    h('p', null, 'A press that lands just after the line (up to this much late) still counts as on it: the take starts — or ends — on that line, using what you already played.'),
     S.startOn === 'sound' ? h('p', null, 'Press Increase and the cup listens. Recording starts the moment you play louder than the threshold below (with 10 ms kept from before, so the attack is there). The very first loop starts the transport on that note.') : null,
     sw('Big countdown on screen', 'bigCount'),
     h('h3', null, 'Punch out'),
     row('Stop after', seg([['pass', 'One pass'], ['bars', 'Bars'], ['layer', 'Passes'], ['silence', 'I stop'], ['manual', 'My press']], S.punchOut, v => { upd('punchOut', v); renderPanes(); })),
-    S.punchOut === 'silence' ? row('Quiet for', sel_([[0.5, '½ second'], [1, '1 second'], [2, '2 seconds'], ['bar', '1 bar']], S.silHold, v => upd('silHold', v === 'bar' ? 'bar' : +v)), h('span', { class: 'note' }, 'then out on the next ' + (S.outQuant === 'loop' ? 'loop end' : S.outQuant === 'now' ? 'beat' : 'bar'))) : null,
+    S.punchOut === 'silence' ? row('Quiet for', Object.assign(sel_([[0.5, '½ second'], [1, '1 second'], [2, '2 seconds'], ['bar', '1 bar']], S.silHold, v => upd('silHold', v === 'bar' ? 'bar' : +v)), { id: 'silSel' }), h('span', { class: 'note' }, 'then out on the next ' + (S.outQuant === 'loop' ? 'loop end' : S.outQuant === 'now' ? 'beat' : 'bar'))) : null,
     S.punchOut === 'silence' ? h('p', null, 'Play as long as you like; when you go quiet, the take ends on the grid. Every full loop pass becomes its own layer. (The very first Free loop still closes on your press.)') : null,
     S.punchOut === 'bars' ? row('Length', sel_([[1, '1 bar'], [2, '2 bars'], [4, '4 bars'], [8, '8 bars'], [16, '16 bars']], S.outBars, v => upd('outBars', +v))) : null,
-    S.punchOut === 'layer' ? row('Passes', sel_([[2, '2'], [3, '3'], [4, '4'], [6, '6'], [8, '8']], S.passes, v => upd('passes', +v)), h('span', { class: 'note' }, 'each pass becomes its own layer')) : null,
+    S.punchOut === 'layer' ? row('Passes', Object.assign(sel_([[2, '2'], [3, '3'], [4, '4'], [6, '6'], [8, '8']], S.passes, v => upd('passes', +v)), { id: 'passSel' }), h('span', { class: 'note' }, 'each pass becomes its own layer')) : null,
     S.punchOut === 'manual' ? h('p', null, 'Recording keeps going until you press again; every loop pass becomes a new layer you can undo on its own.') : null,
     row('Pressed out on', seg([['now', 'Now'], ['bar', 'Bar'], ['loop', 'Loop end']], S.outQuant, v => upd('outQuant', v))),
+    h('h3', null, 'Capture'),
+    h('p', null, 'The looper always listens. Play first; when you like what you just did, press Capture (C) and the last full loop, lined up to the grid, becomes a layer on the cup. No punch to time. With no loop yet in Sync, Play starts the grid and click so you can play along first.'),
+    row('Keep', sel_([[0, 'one cup length'], [1, '1 bar'], [2, '2 bars'], [4, '4 bars'], [8, '8 bars']], S.capBars, v => { upd('capBars', +v); })),
+    row('Ending on', seg([['bar', 'Last bar line'], ['loop', 'Last loop line']], S.capQuant, v => upd('capQuant', v))),
     h('h3', null, 'Sound threshold'),
     h('div', { class: 'thr' }, h('i', null, h('b', { id: 'thrLvl' }), h('u', { id: 'thrMark', style: `left:${((S.trigDb + 60) / 60 * 100).toFixed(1)}%` }))),
     row('Threshold', h('input', { type: 'range', min: -60, max: -6, value: S.trigDb, oninput: e => { upd('trigDb', +e.target.value); const m = $('thrMark'); if (m) m.style.left = ((S.trigDb + 60) / 60 * 100) + '%'; const v = $('thrV'); if (v) v.textContent = S.trigDb + ' dB'; } }), h('span', { class: 'note', id: 'thrV' }, S.trigDb + ' dB')),
@@ -814,7 +862,7 @@ function panePunch(p) {
     sw(S.replace ? 'Gate: replace only where I play — the old part stays wherever the new take is quiet' : 'Gate: keep only where I play — silence between phrases (and the bleed in it) is left out', 'gate'),
     sw('After a take, move to the next empty cup', 'advance'),
     h('h3', null, 'This cup: No.' + (sel + 1) + ' ' + tracks[sel].name),
-    row('Keep', sel_([[0, 'every layer'], [1, 'the last layer'], [2, 'the last 2'], [3, 'the last 3'], [4, 'the last 4'], [8, 'the last 8']], tracks[sel].keep, v => { tracks[sel].keep = +v; })),
+    row('Keep', Object.assign(sel_([[0, 'every layer'], [1, 'the last layer'], [2, 'the last 2'], [3, 'the last 3'], [4, 'the last 4'], [8, 'the last 8']], tracks[sel].keep, v => { tracks[sel].keep = +v; }), { id: 'keepSel' })),
     h('p', null, 'With a limit, each new layer pushes out the oldest (Undo brings it back). “The last layer” makes every pass replace the one before — record with My press or I stop and it keeps only your latest take. Add Fade for a decaying, ever-changing loop.'),
     h('div', { class: 'btnrow' }, h('button', { class: 'pill red', onclick: () => retake() }, 'Retake last take (R)'), h('button', { class: 'pill', onclick: () => undo(sel) }, 'Undo on this cup')),
     h('p', null, 'Retake removes the last take on this cup and records the same stretch of the loop again on the next pass, counted in — one press to redo a flubbed part.'),
@@ -884,6 +932,10 @@ function paneBuild(p) {
     h('div', { class: 'btnrow' },
       h('button', { class: 'pill', onclick: () => { S.recipe.push({ a: 'rec', t: Math.min(NT - 1, S.recipe.filter(s => s.a === 'rec').length), bars: 0 }); saveSoon(); renderPanes(); } }, '+ Step'),
       preset),
+    h('h3', null, 'Ending'),
+    row('Fade out over', sel_([[1, '1 bar'], [2, '2 bars'], [4, '4 bars'], [8, '8 bars'], [16, '16 bars']], S.fadeBars, v => upd('fadeBars', +v))),
+    row('Stop button', seg([['now', 'Now'], ['bar', 'End of bar'], ['loop', 'End of loop']], S.stopMode, v => upd('stopMode', v))),
+    h('p', null, 'Fade out (F) brings everything down smoothly and stops on a bar line; press it again to cancel and come back up. Stop can wait for the end of the bar or loop so the last hit rings out; press it twice to stop at once.'),
     h('h3', null, 'Arrange what you have'),
     h('p', null, 'Bring finished cups in or out on bar lines, for intros, drops and endings.'),
     row('Every', sel_([[1, '1 bar'], [2, '2 bars'], [4, '4 bars'], [8, '8 bars']], S.buildBars, v => { S.buildBars = +v; saveSoon(); })),
@@ -902,12 +954,12 @@ function renderBuild() {
 const PACTIONS = [
   ['main', 'Increase (record / dub / out)'], ['play', 'Play / stop'], ['undo', 'Undo'], ['redo', 'Redo'],
   ['next', 'Next cup'], ['prev', 'Previous cup'], ['mute', 'Mute cup'], ['clear', 'Clear cup'],
-  ['retake', 'Retake last take'], ['tap', 'Tap tempo'], ['tup', 'Tempo +1'], ['tdn', 'Tempo −1'], ['build', 'Run / stop build'],
+  ['retake', 'Retake last take'], ['capture', 'Capture last loop'], ['fade', 'Fade out / cancel'], ['tap', 'Tap tempo'], ['tup', 'Tempo +1'], ['tdn', 'Tempo −1'], ['build', 'Run / stop build'],
 ];
 const DEFAULT_BINDS = {
   main: [{ k: 'key', code: 'Space' }], play: [{ k: 'key', code: 'KeyP' }], undo: [{ k: 'key', code: 'Backspace' }], redo: [{ k: 'key', code: 'KeyY' }],
   next: [{ k: 'key', code: 'ArrowRight' }, { k: 'key', code: 'PageDown' }], prev: [{ k: 'key', code: 'ArrowLeft' }, { k: 'key', code: 'PageUp' }],
-  mute: [{ k: 'key', code: 'KeyM' }], retake: [{ k: 'key', code: 'KeyR' }], clear: [{ k: 'key', code: 'Delete' }], tap: [{ k: 'key', code: 'KeyT' }],
+  mute: [{ k: 'key', code: 'KeyM' }], retake: [{ k: 'key', code: 'KeyR' }], capture: [{ k: 'key', code: 'KeyC' }], fade: [{ k: 'key', code: 'KeyF' }], clear: [{ k: 'key', code: 'Delete' }], tap: [{ k: 'key', code: 'KeyT' }],
   tup: [{ k: 'key', code: 'ArrowUp' }], tdn: [{ k: 'key', code: 'ArrowDown' }], build: [{ k: 'key', code: 'KeyB' }],
 };
 if (!S.bindings) S.bindings = JSON.parse(JSON.stringify(DEFAULT_BINDS));
@@ -919,7 +971,7 @@ function doAction(a) {
     case 'main': main(); break; case 'play': playStop(); break; case 'undo': undo(); break; case 'redo': redo(); break;
     case 'next': select((sel + 1) % NT); break; case 'prev': select((sel + NT - 1) % NT); break;
     case 'mute': tracks[sel].mute = !tracks[sel].mute; sync(sel); renderCups(); break;
-    case 'clear': clearTrack(sel); break; case 'retake': retake(); break; case 'tap': tap(); break;
+    case 'clear': clearTrack(sel); break; case 'retake': retake(); break; case 'capture': capture(); break; case 'fade': fadeOut(); break; case 'tap': tap(); break;
     case 'tup': setTempo(tempoNow() + 1); break; case 'tdn': setTempo(tempoNow() - 1); break;
     case 'build': build.running ? build.stop() : build.start(); break;
   }
@@ -957,6 +1009,7 @@ document.addEventListener('keydown', e => {
 });
 document.addEventListener('keyup', e => { pedalUp('k' + e.code); if (e.code === 'Space' && findAction({ k: 'key', code: 'Space' })) e.preventDefault(); });
 async function enableMidi() {
+  if (ANDROID && !navigator.requestMIDIAccess) { toast('MIDI pedals aren’t available in the Android app yet — keyboard-type USB foot switches and game-pad pedals work'); return; }
   if (!navigator.requestMIDIAccess) { toast('This browser has no Web MIDI — use Chrome or Edge, or a pedal that acts as a keyboard'); return; }
   try {
     midiAccess = await navigator.requestMIDIAccess();
@@ -1081,7 +1134,26 @@ function wav(chs, rate, bits) {
   }
   return new Blob([buf], { type: 'audio/wav' });
 }
-function download(blob, name) {
+const ANDROID = !!window.IncAndroid;
+// Saves a file: a browser download on the web; Music/The Increaser on Android (through the app's bridge)
+async function download(blob, name) {
+  if (ANDROID) {
+    try {
+      const u8 = new Uint8Array(await blob.arrayBuffer());
+      const id = window.IncAndroid.begin(name);
+      if (id < 0) throw new Error('no file');
+      const CH = 3 * 256 * 1024;
+      for (let i = 0; i < u8.length; i += CH) {
+        const part = u8.subarray(i, Math.min(u8.length, i + CH));
+        let s = ''; for (let k = 0; k < part.length; k += 32768) s += String.fromCharCode.apply(null, part.subarray(k, k + 32768));
+        window.IncAndroid.append(id, btoa(s));
+        if ((i / CH) % 8 === 7) await new Promise(r => setTimeout(r, 0));
+      }
+      const path = window.IncAndroid.finish(id);
+      toast(path ? 'Saved to ' + path.replace(/^.*\/Music\//, 'Music/') : 'Could not save ' + name, 5000);
+    } catch (e) { toast('Could not save ' + name + ' on this device', 5000); }
+    return;
+  }
   const a = h('a', { href: URL.createObjectURL(blob), download: name }); document.body.append(a); a.click();
   setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000);
 }
@@ -1192,7 +1264,7 @@ function suitePayload(passes) {
 }
 async function sendToDawters(passes) {
   if (!loop.L || !tracks.some(t => t.active.length)) return toast('Record a loop first');
-  const web = /^https?:$/.test(location.protocol);
+  const web = /^https?:$/.test(location.protocol) && !ANDROID;
   let win = null, url = null;
   if (web) {
     url = /\/increaser\/?(index\.html)?$/.test(location.pathname) ? new URL('../app/', location.href).href : DAWTERS_URL;
@@ -1200,7 +1272,7 @@ async function sendToDawters(passes) {
   }
   toast('Rendering the cups for DAWters…'); await new Promise(r => setTimeout(r, 30));
   const payload = suitePayload(passes);
-  const saveFile = why => { download(new Blob([JSON.stringify(payload)], { type: 'application/json' }), `Increaser loops ${stamp()}.dawsuite.json`); toast((why ? why + ' — ' : '') + 'saved a .dawsuite.json: open DAWters and use File → Import from the suite', 6000); };
+  const saveFile = async why => { await download(new Blob([JSON.stringify(payload)], { type: 'application/json' }), `Increaser loops ${stamp()}.dawsuite.json`); setTimeout(() => toast((why ? why + ' — ' : '') + 'saved a .dawsuite.json: open DAWters and use File → Import from the suite' + (ANDROID ? ' (it is in Music/The Increaser)' : ''), 6500), ANDROID ? 2500 : 0); };
   if (!win) return saveFile(web ? 'Pop-up blocked' : '');
   const origin = new URL(url).origin;
   let done = false;
@@ -1254,13 +1326,15 @@ function help() {
       h('li', null, h('b', null, 'Increase'), ' (Space, or one pedal) does the next sensible thing on the selected cup: record, punch out, overdub. Hold it to undo.'),
       h('li', null, h('b', null, 'Hands free: '), 'set a lead-in and a punch-out in Punch. Press once; the count-in clicks, the take starts on the downbeat and stops by itself.'),
       h('li', null, h('b', null, 'By sound: '), 'Start on my first note records the moment you play over the threshold; Stop after › I stop ends the take on the grid when you go quiet; Gate keeps (or replaces) only the parts where you played.'),
+      h('li', null, h('b', null, 'Capture '), '(C): play first, then press — the last full loop, lined up to the grid, becomes a layer. Presses a hair late still land on the line (Late-press grace).'),
+      h('li', null, h('b', null, 'Ending: '), 'Fade out (F) fades everything over a few bars and stops on a bar line; press again to cancel.'),
       h('li', null, h('b', null, 'Fixing a take: '), 'R (or a pedal) is Retake — it removes the last take on the cup and records the same spot again. Keep › the last layer makes each pass replace the one before.'),
       h('li', null, h('b', null, 'First loop: '), 'Sync records a set number of bars at a set tempo. Free lets you play, then press again — its length sets the tempo. Free can also start on your first note.'),
       h('li', null, h('b', null, 'Build: '), 'a recipe of takes, mutes, waits and tempo ramps that runs on the grid, so a whole song can stack up without touching anything.'),
       h('li', null, h('b', null, 'Tempo: '), 'nudge, tap, halve, double or ramp the tempo while the loops play; they keep their pitch (or follow it, tape style).'),
       h('li', null, h('b', null, 'Pedals: '), 'USB foot switches (keyboard, MIDI or game pad) are learned in Pedal.'),
       h('li', null, h('b', null, 'No instrument handy? '), 'Input › Test band plays along with the grid.')),
-    h('p', null, 'Keys: Space Increase · P play/stop · Backspace undo · Y redo · R retake · ←/→ cup · 1–6 pick a cup · M mute · Delete clear · T tap · ↑/↓ tempo · B build.'),
+    h('p', null, 'Keys: Space Increase · P play/stop · Backspace undo · Y redo · R retake · C capture · F fade out · ←/→ cup · 1–6 pick a cup · M mute · Delete clear · T tap · ↑/↓ tempo · B build.'),
     h('p', null, 'The Increaser is free software (GPL-3.0-or-later) in the DAWters and Son suite, with DAWters (record, mix, master), Esperanza’s Drum Kit (beats) and Eleosynth (synth and pedals). Export › Send to DAWters puts every cup on its own track there. It makes no network requests.'),
     h('div', { class: 'btnrow' }, h('button', { class: 'pill red', onclick: closeDlg }, 'Pour')));
 }
@@ -1276,6 +1350,8 @@ function wireDeck() {
   $('tTap').onclick = tap;
   $('bClick').onclick = () => { S.click = !S.click; saveSoon(); pushAll(); renderDeck(); };
   $('bSet').onclick = toggleCapture;
+  $('bCap').onclick = () => capture();
+  $('bFade').onclick = fadeOut;
   $('bHelp').onclick = help;
   const bt = $('bTheme');
   const applyTheme = () => { if (S.theme) document.documentElement.setAttribute('data-theme', S.theme); else document.documentElement.removeAttribute('data-theme');
@@ -1315,7 +1391,9 @@ function frame() {
       toast(`Room is at ${db.toFixed(0)} dB — threshold set to ${S.trigDb} dB`); if (S.tab === 'punch') renderPanes();
     }
   }
-  const sig = T.recs.map(r => r.track + ':' + r.on + ':' + (r.trigger ? 1 : 0)).join(',') + '|' + T.playing + '|' + (T.pendingR || 0) + '|' + (T.ramp ? 1 : 0) + '|' + T.r.toFixed(4);
+  const fr = $('fadeRing'); if (fr) fr.style.setProperty('--p', ((T.fade >= 0 ? T.fade : 0) * 100).toFixed(1) + '%');
+  $('bFade').classList.toggle('on', T.fade >= 0);
+  const sig = (T.fade >= 0 ? 'F' : '') + T.recs.map(r => r.track + ':' + r.on + ':' + (r.trigger ? 1 : 0)).join(',') + '|' + T.playing + '|' + (T.pendingR || 0) + '|' + (T.ramp ? 1 : 0) + '|' + T.r.toFixed(4);
   if (sig !== lastRecSig) { lastRecSig = sig; renderCups(); renderDeck(); }
   if (build.running) {
     const cur = build.current();
@@ -1335,5 +1413,5 @@ window.addEventListener('beforeunload', e => { if (layers.size) { e.preventDefau
 wireDeck(); buildCups(); renderAll();
 requestAnimationFrame(frame);
 if (!localStorage.getItem('increaser.seen')) { try { localStorage.setItem('increaser.seen', '1'); } catch (e) {} setTimeout(help, 400); }
-window.__inc = { retake, suitePayload, sendToDawters, S, tracks, layers, loop, get T() { return T; }, build, main, record, undo, redo, setTempo, playStop, send, renderOffline, quickBuild, Gnow, select, newSession };
+window.__inc = { capture, fadeOut, retake, suitePayload, sendToDawters, S, tracks, layers, loop, get T() { return T; }, build, main, record, undo, redo, setTempo, playStop, send, renderOffline, quickBuild, Gnow, select, newSession };
 })();

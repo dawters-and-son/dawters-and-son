@@ -91,6 +91,19 @@ button { cursor: pointer; }
 .increase .h { max-width: 84px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font: 400 10px/1.1 var(--mono); opacity: .85; margin-top: 3px; text-transform: none; letter-spacing: 0; }
 .increase.rec { animation: onair 1s ease-in-out infinite; }
 .increase.armed { background: var(--porcelain); color: var(--red); }
+/* Capture and Fade out: the two other big moves */
+.big2 {
+  width: 78px; height: 78px; border-radius: 50%; border: 3px solid var(--ink); background: var(--porcelain); color: var(--ink);
+  display: grid; place-items: center; align-content: center; padding: 0; position: relative; box-shadow: var(--shadow); overflow: hidden;
+}
+.big2 .s { font: 400 19px/1 var(--script); letter-spacing: 0; position: relative; }
+.big2 .k { font: 600 9px/1.2 var(--caps); letter-spacing: .14em; text-transform: uppercase; margin-top: 4px; color: var(--muted); position: relative; }
+.big2.cap { border-color: var(--ink); }
+.big2.cap.flash { background: var(--crema-lt); }
+.big2.fade i { position: absolute; inset: 0; background: conic-gradient(var(--red) 0 var(--p, 0%), transparent 0); opacity: .22; }
+.big2.fade.on { border-color: var(--red); color: var(--red); }
+.big2.fade.on .k { color: var(--red); }
+.big2:disabled { opacity: .45; }
 @keyframes onair { 50% { box-shadow: 0 0 0 6px var(--porcelain), 0 0 0 8px var(--ink), 0 0 26px 10px var(--glow); } }
 
 .readout { font: 400 13px/1.2 var(--mono); min-width: 168px; }
@@ -278,6 +291,8 @@ button { cursor: pointer; }
   .band button { white-space: nowrap; padding: 3px 8px; font-size: 10px; letter-spacing: .06em; }
   .cbtns .rec { font-size: 10px; letter-spacing: 0; white-space: nowrap; }
   .increase .h { display: none; }
+  .big2 { width: 64px; height: 64px; }
+  .big2 .s { font-size: 16px; }
   .deck { padding: 10px 12px; gap: 10px 12px; justify-content: center; }
   .increase { width: 92px; height: 92px; margin: 4px 6px; }
   .readout { min-width: 0; }

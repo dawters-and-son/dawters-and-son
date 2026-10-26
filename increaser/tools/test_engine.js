@@ -171,6 +171,72 @@ const f1 = freq(r.L, 4000, half - 8000), f2 = freq(r.L, half + 8000, e.L - 4000)
 ok(Math.abs(f1 - 440) < 1 && Math.abs(f2 - 660) < 1, 'gated replace: first half keeps the old 440 Hz, second half is the new 660 Hz (' + f1.toFixed(1) + ', ' + f2.toFixed(1) + ')');
 ok(rms(r.L, 4000, half - 8000) > 0.05, 'and the quiet half of the new take adds no noise or gap');
 
+// 18. Capture: play first, then press — the last loop that ended on the line becomes the layer
+e = mk(); e.cmd({ c: 'set', baseTempo: 120 }); e.L = e.loopLen();
+e.cmd({ c: 'play', G: 0 });
+const tone = i => 0.4 * Math.sin(2 * Math.PI * 330 * i / SR);
+run(e, e.L * 2 + Math.round(0.1 * SR), tone);  // two loops and 0.1 s into the third
+e.cmd({ c: 'retro', track: 0, quant: 'bar' });
+r = run(e, 256, tone);
+let cl = r.msgs.find(m => m.t === 'layer');
+ok(cl && cl.n === e.L && cl.s === 0, 'Capture a moment after the loop line takes the pass that just ended (n=' + (cl && cl.n) + ', s=' + (cl && cl.s) + ')');
+e.cmd({ c: 'stop' }); e.cmd({ c: 'play', G: 0 });
+r = run(e, 24000, null);
+ok(Math.abs(freq(r.L, 4000, 24000) - 330) < 0.5, 'and it plays back');
+// capture mid-loop: the window ends on the last bar line (4 bars back from there)
+e.cmd({ c: 'stop' }); e.cmd({ c: 'play', G: 0 });
+run(e, e.L + Math.round(2.5 * e.barLen()), tone);
+e.cmd({ c: 'retro', track: 1, quant: 'bar' }); r = run(e, 128, tone);
+cl = r.msgs.find(m => m.t === 'layer');
+ok(cl && cl.n === e.L && cl.s === 2 * e.barLen(), 'Capture mid-loop: one loop ending on the last bar line (s at bar 3)');
+// not enough played yet
+e.cmd({ c: 'stop' }); e.cmd({ c: 'play', G: 0 }); run(e, e.barLen(), tone);
+e.cmd({ c: 'retro', track: 2, quant: 'bar' }); r = run(e, 128, tone);
+ok(r.msgs.some(m => m.t === 'retroFail'), 'Capture with less than a loop played says so');
+// capture survives a tempo change inside the window
+e.cmd({ c: 'stop' }); e.cmd({ c: 'play', G: 0 }); run(e, e.barLen() * 2, tone); e.cmd({ c: 'tempo', bpm: 132 });
+run(e, e.L, tone); e.cmd({ c: 'retro', track: 3, quant: 'bar' }); r = run(e, 128, tone);
+cl = r.msgs.find(m => m.t === 'layer');
+ok(cl && Math.abs(cl.n * cl.rate - e.L) < 1, 'Capture across a tempo change still spans one loop (rate ' + (cl && cl.rate.toFixed(3)) + ')');
+e.cmd({ c: 'tempo', bpm: 120 });
+
+// 19. late-press grace: pressing 60 ms after bar 2 still punches in on bar 2
+e = mk(); e.cmd({ c: 'set', baseTempo: 120 }); e.L = e.loopLen();
+e.cmd({ c: 'play', G: 0 });
+run(e, e.barLen() + Math.round(0.06 * SR), tone);
+e.cmd({ c: 'arm', track: 0, quant: 'bar', lead: 0, passes: 1, grace: Math.round(0.125 * SR) });
+r = run(e, e.L + 1000, tone);
+let gl = r.msgs.find(m => m.t === 'layer');
+ok(gl && gl.s === e.barLen() && gl.n === e.L, 'late press 60 ms after the bar starts on that bar, full loop');
+run(e, Math.round(0.4 * SR), tone);
+e.cmd({ c: 'arm', track: 1, quant: 'bar', lead: 0, passes: 1, grace: Math.round(0.125 * SR) });
+run(e, Math.round(0.1 * SR), tone);
+ok(e.recs.length === 1 && !e.recs[0].on, 'a press well after the line waits for the next one');
+e.cmd({ c: 'cancel', track: 1 });
+// punch out late
+e.cmd({ c: 'stop' }); e.cmd({ c: 'play', G: 0 }); e.cmd({ c: 'arm', track: 2, startG: 0, lead: 0 });
+run(e, e.barLen() * 2 + Math.round(0.05 * SR), tone);
+e.cmd({ c: 'punchOut', track: 2, quant: 'bar', grace: Math.round(0.125 * SR) });
+r = run(e, 1000, tone); gl = r.msgs.find(m => m.t === 'layer');
+ok(gl && gl.n === 2 * e.barLen(), 'late punch-out 50 ms after bar 3 ends the take on bar 3 (' + (gl && (gl.n / e.barLen()).toFixed(3)) + ' bars)');
+
+// 20. fade out: lands on a bar line, then stops; level falls smoothly
+e = mk(); e.cmd({ c: 'set', baseTempo: 120 }); e.L = e.loopLen();
+e.cmd({ c: 'addLayer', id: 1, track: 0, Lb: new Float32Array(e.L).map((_, i) => 0.5 * Math.sin(i * 0.05)), Rb: new Float32Array(e.L).map((_, i) => 0.5 * Math.sin(i * 0.05)), n: e.L, s: 0, rate: 1 });
+e.cmd({ c: 'setTrack', track: 0, active: [1] });
+e.cmd({ c: 'play', G: 0 }); run(e, Math.round(0.3 * e.barLen()), null);
+e.cmd({ c: 'fadeOut', bars: 2 });
+r = run(e, Math.round(2.5 * e.barLen()), null);
+const fd = r.msgs.find(m => m.t === 'fadeStart');
+ok(fd && fd.endG === 2 * e.barLen(), 'fade of 2 bars from bar 1.3 ends on bar 3');
+ok(!e.playing && r.msgs.some(m => m.t === 'fadeDone'), 'and the looper stops when it is done');
+const q1 = rms(r.L, 0, 20000), q2 = rms(r.L, Math.round(0.85 * e.barLen()), Math.round(0.85 * e.barLen()) + 20000), q3 = rms(r.L, Math.round(1.6 * e.barLen()), Math.round(1.6 * e.barLen()) + 20000);
+ok(q1 > q2 && q2 > q3 && q3 > 0, 'level falls through the fade (' + [q1, q2, q3].map(x => x.toFixed(3)).join(' > ') + ')');
+e.cmd({ c: 'play', G: 0 }); r = run(e, 48000, null);
+ok(rms(r.L, 24000, 48000) > q1 * 0.9, 'Play after a fade is back at full level');
+e.cmd({ c: 'fadeOut', bars: 4 }); run(e, 24000, null); e.cmd({ c: 'fadeOut', cancel: true }); r = run(e, 96000, null);
+ok(e.playing && rms(r.L, 72000, 96000) > q1 * 0.9, 'a second press cancels the fade and the level comes back');
+
 // 14. CPU: 6 tracks × 5 layers, stretched
 e = mk(); e.cmd({ c: 'set', baseTempo: 120 }); e.L = e.loopLen();
 for (let t = 0; t < 6; t++) { const ids = []; for (let k = 0; k < 5; k++) { const id = t * 10 + k + 1; const a = new Float32Array(e.L).map((_, i) => Math.sin(i * 0.05 * (k + 1))); e.cmd({ c: 'addLayer', id, track: t, Lb: a, Rb: a, n: e.L, s: 0, rate: 1 }); ids.push(id); } e.cmd({ c: 'setTrack', track: t, active: ids, filt: -0.4 }); }

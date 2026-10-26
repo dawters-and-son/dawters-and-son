@@ -80,7 +80,7 @@ jobs:
         run: |
           V=${TAG#v}
           git archive --format=zip -9 -o "dist/DAWters-and-Son-$V-source.zip" --prefix="DAWters-and-Son-$V/" HEAD
-          cd dist && rm -f dawters.html && sha256sum DAWters-and-Son-* > SHA256SUMS.txt && cat SHA256SUMS.txt
+          cd dist && rm -f dawters.html && sha256sum DAWters-and-Son-* The-Increaser-* > SHA256SUMS.txt && cat SHA256SUMS.txt
       - name: Publish the release
         uses: softprops/action-gh-release@v2
         with:
@@ -90,4 +90,5 @@ jobs:
           body_path: .github/release-notes.md
           files: |
             dist/DAWters-and-Son-*
+            dist/The-Increaser-*
             dist/SHA256SUMS.txt

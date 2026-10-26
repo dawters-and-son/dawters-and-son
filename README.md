@@ -56,6 +56,10 @@ import WAV/MP3/OGG/FLAC/M4A (drag and drop too), offline export of stereo mixdow
   the looper's tempo and meter when the song is empty (at the playhead otherwise). `.dawsuite.json` files
   of kind `stems` import the same way.
 - The tempo box now updates when a suite handoff sets the song's tempo.
+- **The Increaser 0.3:** Capture (keep the loop you just played, lined up to the grid), late-press grace,
+  a big Fade out button (ends on a bar line; press again to cancel), Stop at end of bar / loop, and an
+  Android app (`increaser/android/build-apk.sh`, package `com.wilk.increaser`) that `build-all.sh` adds to
+  each release, signed with the DAWters release key.
 
 ## v2.4.0 — the suite: Eleosynth and Esperanza's Drum Kit inside DAWters
 

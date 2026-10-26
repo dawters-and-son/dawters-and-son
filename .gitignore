@@ -26,3 +26,5 @@ linux/ffmpeg/
 *.cer
 *.p8
 _site/
+increaser/android/build/
+increaser/android/assets/

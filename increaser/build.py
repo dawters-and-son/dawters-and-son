@@ -4,7 +4,7 @@
 import base64, os, zipfile
 ROOT = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.join(ROOT, 'src'); DIST = os.path.join(ROOT, 'dist')
-V = '0.2.0'
+V = '0.3.0'
 def rd(*p): return open(os.path.join(SRC, *p), encoding='utf-8').read()
 fonts = [('Yesteryear', 400, 'yesteryear-latin-400-normal.woff2'), ('Oswald', 400, 'oswald-latin-400-normal.woff2'),
          ('Oswald', 600, 'oswald-latin-600-normal.woff2'), ('Courier Prime', 400, 'courier-prime-latin-400-normal.woff2'),

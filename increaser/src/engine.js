@@ -45,6 +45,9 @@ class Engine {
     this.pre = new Float32Array(2048); this.preR = new Float32Array(2048); this.preI = 0;
     this.calib = null;
     this.out = [];
+    // rolling input history (≈44 s at 48 kHz) for Capture and late presses; G is stored per 128-frame block
+    this.HN = 1 << 21; this.hL = null; this.hR = null; this.hG = null; this.hw = 0; this.hn = 0;
+    this.fadeG = 1; this.fade = null; this.unfade = 0;
     // granular stretcher
     this.GN = Math.max(512, Math.round(sr * 0.046) & ~1); this.GH = this.GN >> 1;
     this.win = new Float32Array(this.GN);
@@ -70,6 +73,8 @@ class Engine {
         this.playing = true; this.G = m.G != null ? m.G : 0; this.ts.step = -1;
         this.ck.last = Math.floor(this.G / this.beatLen()) - (Math.abs(this.G / this.beatLen() - Math.round(this.G / this.beatLen())) < 1e-9 ? 1 : 0);
         this.testPos = this.G; for (const t of this.tracks) t.ga = 0;
+        if (!this.hL) { this.hL = new Float32Array(this.HN); this.hR = new Float32Array(this.HN); this.hG = new Float64Array(this.HN >> 7); }
+        this.hw = 0; this.hn = 0; this.fade = null; this.unfade = 0; this.fadeG = 1;
         break;
       }
       case 'stop': {
@@ -85,7 +90,11 @@ class Engine {
         if (!r) break;
         if (!r.on) { this.dropRec(r, 'cancelled'); break; }
         if (r.free && this.L === 0) { this.finishRec(r, false); break; }
-        const end = m.quant && m.quant !== 'now' ? this.nextBoundary(this.G + 1, m.quant) : this.G;
+        let end = m.quant && m.quant !== 'now' ? this.nextBoundary(this.G + 1, m.quant) : this.G;
+        if (m.grace && m.quant && m.quant !== 'now') {
+          const Q = this.quantum(m.quant), prev = Math.floor(this.G / Q) * Q;
+          if (this.G - prev <= m.grace && prev > r.segStart + this.r * 64) end = prev; // a late press ends on the line just passed
+        }
         r.endG = Math.max(end, r.segStart + r.r0); r.maxPasses = 0;
         this.out.push({ t: 'punchOutAt', track: r.track, endG: r.endG });
         break;
@@ -116,6 +125,16 @@ class Engine {
         break;
       }
       case 'stopRamp': this.ramp = null; break;
+      case 'retro': this.retro(m); break;
+      case 'fadeOut': {
+        if (!this.playing) break;
+        if (m.cancel) { if (this.fade) { this.fade = null; this.unfade = 1; this.events = this.events.filter(e => e.tag !== 'fadeStop'); this.out.push({ t: 'fadeCancel' }); } break; }
+        // end on a bar line at least (bars − ½) bars from now
+        const bar = this.barLen(), end = this.L > 0 ? this.nextBoundary(this.G + Math.max(0.5, m.bars - 0.5) * bar, 'bar') : this.G + m.bars * bar;
+        this.fade = { g0: this.fadeG, dur: Math.max(1, end - this.G), prog: 0 };
+        this.out.push({ t: 'fadeStart', endG: end });
+        break;
+      }
       case 'at': {
         let G = m.G; if (G < this.G) G = this.G;
         this.events.push({ G, cmd: m.cmd, tag: m.tag }); this.events.sort((a, b) => a.G - b.G);
@@ -160,7 +179,11 @@ class Engine {
       startG = m.startG;
       if (startG < this.G + 64) startG = this.nextBoundary(this.G + lead, m.quant || 'bar');
     } else if (!this.playing) startG = 0;
-    else startG = (m.quant && m.quant !== 'now') ? this.nextBoundary(this.G + lead + 256, m.quant) : this.G + lead;
+    else if (m.quant && m.quant !== 'now') {
+      const T = this.G + lead, Q = this.quantum(m.quant), prev = Math.floor(T / Q) * Q;
+      // late-press grace: pressed (or counted in) a hair after the line → start on that line
+      startG = (m.grace && Q && T - prev <= m.grace && prev >= 0 && this.canBackfill(prev)) ? prev : this.nextBoundary(T + 256, m.quant);
+    } else startG = this.G + lead;
     const rec = { track: m.track, tag: m.tag, startG, endG: m.len && !m.trigger ? startG + m.len : null, lenReq: m.len || 0, maxPasses: m.passes || 0,
       passes: 0, replace: !!m.replace, free: !!m.free, trigger: !!m.trigger, lead, on: false, r0: this.r,
       silStop: m.silStop || 0, silQ: m.silQ || 'bar', gate: m.gate || 0, quiet: 0, heard: false,
@@ -191,8 +214,9 @@ class Engine {
   collect(r) {
     const n = r.count, Lb = new Float32Array(n), Rb = new Float32Array(n);
     let o = 0;
-    for (const c of r.chunks) { Lb.set(c[0], o); Rb.set(c[1], o); o += c[0].length; }
-    Lb.set(r.cur[0].subarray(0, r.ci), o); Rb.set(r.cur[1].subarray(0, r.ci), o);
+    const put = (a, b) => { const k = Math.min(a.length, n - o); if (k <= 0) return; Lb.set(a.subarray(0, k), o); Rb.set(b.subarray(0, k), o); o += k; };
+    for (const c of r.chunks) put(c[0], c[1]);
+    put(r.cur[0].subarray(0, r.ci), r.cur[1].subarray(0, r.ci));
     return [Lb, Rb];
   }
 
@@ -222,6 +246,7 @@ class Engine {
   }
 
   finishRec(r, cut) {
+    if (r.endG != null && r.r0 > 0) { const maxN = Math.round((r.endG - r.segStart) / r.r0); if (maxN >= 0 && r.count > maxN) r.count = maxN; }
     const lay = this.closeSeg(r);
     const i = this.recs.indexOf(r); if (i >= 0) this.recs.splice(i, 1);
     this.out.push({ t: 'recEnd', track: r.track, tag: r.tag, why: cut ? 'cut' : 'done', layers: r.passes });
@@ -265,6 +290,49 @@ class Engine {
     const i = x | 0, f = x - i;
     const a = buf[i], b = buf[i + 1 < n ? i + 1 : (full ? 0 : i)];
     return a + (b - a) * f;
+  }
+
+  // ---------- input history ----------
+  // absolute frame k → G at which it was recorded
+  hGat(k) {
+    const kb = k >> 7, i = kb & ((this.HN >> 7) - 1), g0 = this.hG[i];
+    const nb = (kb + 1) << 7;
+    const r = nb < this.hw ? (this.hG[(kb + 1) & ((this.HN >> 7) - 1)] - g0) / 128 : this.r;
+    return g0 + (k - (kb << 7)) * r;
+  }
+  canBackfill(G0) { return !!this.hL && this.hn > 256 && this.hGat(this.hw - this.hn + 128 - ((this.hw - this.hn) & 127)) <= G0; }
+  // first absolute frame recorded at or after G
+  hFind(G) {
+    let lo = this.hw - this.hn, hi = this.hw - 1;
+    lo += (128 - (lo & 127)) & 127; // first whole block
+    if (lo > hi || this.hGat(lo) > G) return -1;
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (this.hGat(mid) < G) lo = mid + 1; else hi = mid; }
+    return lo;
+  }
+  histRange(a, b) {
+    if (!this.hL || this.hn < 256) return null;
+    const ka = this.hFind(a); if (ka < 0) return null;
+    const kb = b >= this.G ? this.hw : this.hFind(b); if (kb <= ka) return null;
+    const n = kb - ka, L = new Float32Array(n), R = new Float32Array(n), M = this.HN - 1;
+    for (let j = 0; j < n; j++) { const q = (ka + j) & M; L[j] = this.hL[q]; R[j] = this.hR[q]; }
+    return [L, R];
+  }
+  // Capture: the last full cup length that ended on the most recent line becomes a layer, as if you had
+  // punched it in. A press a moment after the loop/bar line counts for the pass that just ended.
+  retro(m) {
+    const t = m.track, len = this.L > 0 ? (m.len || this.trackLen(t)) : 0;
+    if (!len) { this.out.push({ t: 'retroFail', track: t, why: 'noloop' }); return; }
+    const Q = this.quantum(m.quant || 'bar') || len;
+    const end = Math.floor(this.G / Q) * Q, a = end - len;
+    const h = a >= 0 ? this.histRange(a, end) : null;
+    if (!h) { this.out.push({ t: 'retroFail', track: t, why: 'short', need: len, have: this.hn }); return; }
+    const n = h[0].length, rate = len / n;
+    let s = a - this.latency * rate; s = ((s % this.trackLen(t)) + this.trackLen(t)) % this.trackLen(t);
+    const id = this.nextId++;
+    const lay = this.mkLayer(id, t, h[0], h[1], n, s, rate, !!m.replace, m.gate || 0);
+    this.layers.set(id, lay); this.tracks[t].active.push(id);
+    this.out.push({ t: 'layer', id, track: t, n, s, rate, replace: !!m.replace, gate: m.gate || 0, Lb: h[0].slice(), Rb: h[1].slice(), tag: 'cap', _transfer: true });
+    this.out.push({ t: 'recEnd', track: t, tag: 'cap', why: 'done', layers: 1 });
   }
 
   // WSOLA: start the new grain where it best continues the grain that is fading out
@@ -376,6 +444,11 @@ class Engine {
       if (this.test && (this.playing || this.recs.length)) { tsig = this.testSample(); xl += tsig; xr += tsig; this.testPos += this.r; }
       const ia = Math.max(Math.abs(xl), Math.abs(xr)); if (ia > this.inPeak) this.inPeak = ia;
       this.pre[this.preI] = xl; this.preR[this.preI] = xr; this.preI = (this.preI + 1) & 2047;
+      if (this.playing && this.hL) {
+        const w = this.hw & (this.HN - 1);
+        if ((w & 127) === 0) this.hG[w >> 7] = this.G;
+        this.hL[w] = xl; this.hR[w] = xr; this.hw++; if (this.hn < this.HN) this.hn++;
+      }
 
       // ----- calibration (speaker → mic round trip) -----
       let calOut = 0;
@@ -400,7 +473,14 @@ class Engine {
               r.segStart = this.G - P * r.r0;
               if (r.lenReq) r.endG = r.startG + r.lenReq;
             } else continue;
-          } else if (this.playing && this.G >= r.startG) this.startRec(r);
+          } else if (this.playing && this.G >= r.startG) {
+            this.startRec(r);
+            if (this.G - r.startG > this.r * 2) {
+              const h = this.histRange(r.startG, this.G);
+              if (h) { for (let j = 0; j < h[0].length; j++) this.pushRec(r, h[0][j], h[1][j]); r.segStart = r.startG; this.out.push({ t: 'graced', track: r.track, frames: h[0].length }); }
+              else r.segStart = this.G;
+            }
+          }
           else continue;
         }
         this.pushRec(r, xl, xr);
@@ -503,7 +583,14 @@ class Engine {
         mL += sL; mR += sR;
       }
       if (this.monitor) { mL += xl; mR += xr; } else if (tsig) { mL += tsig; mR += tsig; } // the test band is always heard
-      mL *= this.master; mR *= this.master;
+      if (this.fade) {
+        const f = this.fade; f.prog += this.playing ? this.r : 0;
+        const u = Math.min(1, f.prog / f.dur);
+        this.fadeG = f.g0 * Math.pow(1 - u, 2.2);
+        if (u >= 1) { this.fade = null; this.fadeG = 0; this.out.push({ t: 'fadeDone' }); this.cmd({ c: 'stop' }); this.unfade = 1; }
+      } else if (this.unfade) { this.fadeG += (1 - this.fadeG) * 0.0005; if (this.fadeG > 0.9999) { this.fadeG = 1; this.unfade = 0; } }
+      else if (!this.playing && this.fadeG !== 1) this.fadeG = 1;
+      mL *= this.master * this.fadeG; mR *= this.master * this.fadeG;
       // peak limiter: instant attack, ~150 ms release, ceiling −0.3 dBFS
       const pk = Math.max(Math.abs(mL), Math.abs(mR));
       const need = pk > 0.966 ? 0.966 / pk : 1;
@@ -591,7 +678,7 @@ class Engine {
     const peaks = this.tracks.map(t => { const p = t.peak; t.peak = 0; return p; });
     const s = { t: 'tick', G: this.G, playing: this.playing, r: this.r, L: this.L, baseTempo: this.baseTempo, recs,
       peaks, inPeak: this.inPeak, mPeak: this.mPeak, ramp: this.ramp ? { r1: this.ramp.r1, u: this.ramp.prog / this.ramp.dur, startG: this.ramp.startG } : null,
-      pendingR: this.pendingR, events: this.events.length };
+      pendingR: this.pendingR, events: this.events.length, fade: this.fade ? Math.min(1, this.fade.prog / this.fade.dur) : -1, fadeG: this.fadeG, hist: this.hn };
     this.inPeak = 0; this.mPeak = 0;
     return s;
   }
