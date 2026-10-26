@@ -46,6 +46,17 @@ Wobble Tremolo, Tangerine Tube Drive, Rainbow 10-band Graphic EQ.
 import WAV/MP3/OGG/FLAC/M4A (drag and drop too), offline export of stereo mixdown or stems (zip),
 16-bit dithered / 24 / 32-float, 44.1/48/96 kHz, tail, normalize; export reports peak and integrated LUFS.
 
+## Website update (in the next desktop and Android release) — The Increaser joins the suite
+
+- **The Increaser**, the suite's live looper, now lives in `increaser/` and is published with the website
+  at `/increaser/` (built from source by `tools/assemble_site.sh`). Six loop cups; hands-free punch-in with a
+  count-in, or start on your first note and stop when you go quiet; gated takes; Retake; progressive build-up
+  recipes; live tempo moves; optional USB, MIDI and game-pad pedals. See `increaser/README.md`.
+- **From The Increaser:** its Export › Send to DAWters puts every cup on its own track here, from bar 1 at
+  the looper's tempo and meter when the song is empty (at the playhead otherwise). `.dawsuite.json` files
+  of kind `stems` import the same way.
+- The tempo box now updates when a suite handoff sets the song's tempo.
+
 ## v2.4.0 — the suite: Eleosynth and Esperanza's Drum Kit inside DAWters
 
 - **Eleosynth tracks** (Track → Add Eleosynth track): the full synth runs inside DAWters on the song's clock.

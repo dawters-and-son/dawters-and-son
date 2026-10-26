@@ -2,7 +2,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 Josh Wilk. Part of DAWters and Son; see LICENSE for terms (no warranty).
 # Build Eleosynth and Esperanza's Drum Kit from their repositories and copy their single-file pages into
-# vendor/suite/, where build.py picks them up as plugins.
+# vendor/suite/, where build.py picks them up as plugins. (The Increaser, the suite's live looper, lives in
+# increaser/ in this repository; tools/assemble_site.sh builds it and publishes it at /increaser/.)
 #   ELEO_DIR  path to a checkout of github.com/Eleosynth/Eleosynth            (default ../eleosynth)
 #   EDK_DIR   path to a checkout of github.com/Esperanza-s-Drum-Kit/...       (default ../esperanza-s-drum-kit)
 set -e

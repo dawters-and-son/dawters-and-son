@@ -191,6 +191,21 @@ td:first-child { font-weight: 700; white-space: nowrap; }
 .edk-band b { font: 600 26px/1 var(--head); color: var(--ink); display: block; }
 .edk-motto { font: italic 400 15px var(--mono); color: var(--muted); }
 @media (max-width: 900px) { .edk-mod { grid-template-columns: 1fr; } }
+/* The Increaser: porcelain card, cup-red rim */
+.sapp.inc { background: #FFFFFF; color: #1A1611; border-color: #D2121E; box-shadow: 0 0 0 4px var(--paper), 0 0 0 6px #D2121E; }
+.sapp.inc h3 small { color: #D2121E; }
+.sapp.inc .btn { border-color: #D2121E; color: #D2121E; background: transparent; }
+.sapp.inc .btn:hover { background: rgba(210,18,30,.08); }
+.inc-mod { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 34px; align-items: center; }
+.inc-mod .tv { background: #F3EEE4; }
+.inc-pts { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.inc-pts li { border-left: 4px solid #D2121E; padding: 2px 0 2px 14px; font-size: 15px; }
+.inc-pts b { font: 600 18px var(--head); text-transform: uppercase; display: block; letter-spacing: .3px; }
+.inc-mod .btns { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+.inc-band { display: flex; gap: 22px; flex-wrap: wrap; margin-top: 20px; font: 400 13px var(--mono); color: var(--muted); }
+.inc-band b { font: 600 26px/1 var(--head); color: var(--ink); display: block; }
+.inc-motto { font: italic 400 15px var(--mono); color: var(--muted); }
+@media (max-width: 900px) { .inc-mod { grid-template-columns: 1fr; } }
 /* faq */
 .faq { display: grid; gap: 10px; max-width: 900px; }
 details { border: 2px solid var(--ink); border-radius: 12px; background: var(--card); padding: 0 18px; }
@@ -213,7 +228,7 @@ footer p { color: #B6AC98; max-width: 60ch; }
   <div class="wrap">
     <a class="brand" href="#top"><img src="img/icon.svg" alt="" width="40" height="40"><b>DAWters &amp; Son</b></a>
     <nav class="nav" aria-label="Sections">
-      <a href="#features">Features</a><a href="#screens">Screens</a><a href="#compare">Compare</a><a href="#suite">The suite</a><a href="#edk">Drum Kit</a><a href="#eleosynth">Eleosynth</a><a href="#gift">The gift</a><a href="#faq">FAQ</a><a class="cta" href="#get">Download free</a>
+      <a href="#features">Features</a><a href="#screens">Screens</a><a href="#compare">Compare</a><a href="#suite">The suite</a><a href="#edk">Drum Kit</a><a href="#eleosynth">Eleosynth</a><a href="#increaser">Increaser</a><a href="#gift">The gift</a><a href="#faq">FAQ</a><a class="cta" href="#get">Download free</a>
     </nav>
   </div>
 </header>
@@ -315,12 +330,13 @@ footer p { color: #B6AC98; max-width: 60ch; }
 
   <section class="s" id="suite">
     <div class="wrap">
-      <div class="title-card"><div class="eyebrow">The suite</div><h2>Now with a beat studio and a synth.</h2><p>DAWters &amp; Son has two siblings. Make the beat in Esperanza’s Drum Kit, find the sound in Eleosynth, then record and master it all here. Same promise: free, open source, no tracking.</p></div>
+      <div class="title-card"><div class="eyebrow">The suite</div><h2>A beat studio, a synth and a looper.</h2><p>DAWters &amp; Son has three siblings. Make the beat in Esperanza’s Drum Kit, find the sound in Eleosynth, build it up live in The Increaser, then record and master it all here. Same promise: free, open source, no tracking.</p></div>
       <div class="suite">
         <div class="apps">
           <div class="sapp"><div class="k">Recording · mixing · mastering</div><h3>DAWters &amp; Son</h3><p>The multitrack studio you’re looking at: unlimited tracks, the console, 24 effects, mastering and the tuner.</p></div>
           <div class="sapp edk"><div class="k">Beats · patterns · arranging</div><h3><img src="img/edk-icon.svg" alt="" width="36" height="36">Esperanza’s <small>Drum Kit</small></h3><p>A pattern-based beat studio with a channel rack, a playlist with song sections, five drum kits, 808s and synths, and a Feel dial that makes programmed beats play like a person. On Android and in the browser.</p><a class="btn" href="https://esperanza-s-drum-kit.github.io/Esperanza-s-Drum-Kit/" rel="noopener">Meet Esperanza’s Drum Kit</a></div>
           <div class="sapp eleo"><div class="k">Synth · keys · guitar pedals</div><h3><img class="sq" src="img/eleosynth-icon.png" alt="" width="36" height="36">Eleosynth <small>Synth &amp; pedals</small></h3><p>A wavetable, tine-piano and granular synthesizer you can plug your guitar into: 39 effects, a full pedalboard, a tuner, and guitar-to-synth tracking.</p><a class="btn" href="#eleosynth">See Eleosynth</a></div>
+          <div class="sapp inc"><div class="k">Live looping · build-ups · stage</div><h3><img src="img/increaser-icon.svg" alt="" width="36" height="36">The Increaser <small>Live looper</small></h3><p>Six loop tracks with hands-free punch-in: it counts you in, records on the downbeat and stops by itself. Stack a song pass by pass, move the tempo live, and add a USB pedal if you have one.</p><a class="btn" href="#increaser">See The Increaser</a></div>
         </div>
         <div class="tv"><img src="img/edk-studio.webp" width="1600" height="1000" alt="Esperanza’s Drum Kit: a channel rack of programmed steps above a playlist arranged into Intro, Verse, Chorus and Outro sections." loading="lazy"></div>
       </div>
@@ -367,6 +383,30 @@ footer p { color: #B6AC98; max-width: 60ch; }
     </div>
   </section>
 
+  <section class="s" id="increaser">
+    <div class="wrap">
+      <div class="title-card"><div class="eyebrow">New in the suite</div><h2>Meet The Increaser.</h2><p>A live looper for the stage and the bedroom. Build the song up one pass at a time there, then send every loop here as its own track.</p><p class="inc-motto">Every pass, a little more.</p></div>
+      <div class="inc-mod">
+        <div>
+          <div class="tv"><img src="img/increaser-count.webp" width="1600" height="1000" alt="The Increaser: six loop tracks drawn as espresso cups seen from above, four of them filled and playing, with a large countdown disc showing 2 before the fifth cup punches in, and the Build recipe panel at the side." loading="lazy"></div>
+          <div class="inc-band"><span><b>6</b>loop cups</span><span><b>0</b>pedals needed</span><span><b>12</b>pedal actions</span><span><b>4</b>build recipes</span><span><b>$0</b>forever</span></div>
+        </div>
+        <div>
+          <ul class="inc-pts">
+            <li><b>Punch in without a pedal</b>Press once. It clicks a lead-in, shows a big countdown, records from the downbeat and punches out after a pass, a few bars, or as many layered passes as you like.</li>
+            <li><b>Or let your playing do it</b>Start a take on your first note and end it when you go quiet, using a threshold you set from the room. A gate keeps only the parts where you played, and Retake redoes the last part in the same spot with one press.</li>
+            <li><b>Build it up, hands free</b>A recipe of takes, mutes, waits and tempo ramps runs on the grid, so a whole arrangement stacks up while you play. Build up, break down and drop buttons arrange what you already have.</li>
+            <li><b>Move the tempo live</b>Nudge, tap, halve, double or ramp it while the loops play; they keep their pitch, or follow it like tape.</li>
+            <li><b>Pedals welcome, not required</b>USB foot switches that type keys, MIDI pedals and game-pad pedals are learned in one tap. One pedal is enough: tap to record, tap to overdub, hold to undo.</li>
+            <li><b>Made to work with this studio</b>Send to DAWters puts every loop on its own track here, lined up from bar 1 at the looper’s tempo.</li>
+          </ul>
+          <div class="btns"><a class="btn red" href="increaser/">Play it in your browser</a><a class="btn" href="#faq">Questions</a></div>
+          <p class="inc-motto" style="margin-top:12px">In the browser now (Chrome, Edge, Firefox; Safari from this site). Desktop and Android versions are coming.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <section class="s" id="gift">
     <div class="wrap">
       <div class="title-card"><div class="eyebrow">Why it’s free</div><h2>It’s a gift.</h2></div>
@@ -401,6 +441,7 @@ footer p { color: #B6AC98; max-width: 60ch; }
         <details><summary>Will it run on my phone or tablet?</summary><p>Yes, on Android 7 or newer. The Deck view has big controls built for touch: swipe a track right for its settings and left for its effects. There’s no iPhone or iPad version yet.</p></details>
         <details><summary>Is there a synth I can plug my guitar into?</summary><p>Yes: Eleosynth, the suite’s synthesizer and pedalboard. It has wavetables, a tine electric piano, granular textures and 39 effects, and it can play its synth from your guitar. It’s free and open source too; its website is linked in the Eleosynth section above.</p></details>
         <details><summary>Is there a beat maker?</summary><p>Yes: Esperanza’s Drum Kit, the suite’s pattern-based beat studio. It’s free and open source too, and shares this app’s sound engine. Its website is linked in the suite section above.</p></details>
+        <details><summary>Is there a looper for playing live?</summary><p>Yes: The Increaser, the suite’s live looper. It counts you in and punches in and out on its own (or starts on your first note and stops when you go quiet), so you don’t need a pedal, and it learns USB and MIDI foot switches if you have them. It runs in your browser from this site (the button in its section above), works offline once loaded, and sends its loops here as tracks.</p></details>
         <details><summary>Does MIDI work?</summary><p>Yes, in the desktop versions and in Chrome or Edge. On Android, use the on-screen keyboard and drum pads for now.</p></details>
         <details><summary>How do I get help or report a bug?</summary><p>Open an issue on the project’s code page with what you did, what you expected and what happened. Include your platform and version (see Help › About).</p></details>
       </div>

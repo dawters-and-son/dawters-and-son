@@ -1,0 +1,87 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>The Increaser</title>
+<meta name="description" content="A live looper in the DAWters and Son suite: hands-free punch-in with lead-in, progressive build-ups, tempo moves, USB pedals.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%23fff' stroke='%23D2121E' stroke-width='4'/%3E%3Ccircle cx='32' cy='32' r='18' fill='%232B1A12'/%3E%3Ccircle cx='32' cy='32' r='12' fill='%23C99A62'/%3E%3Ccircle cx='32' cy='32' r='6' fill='%23EBD3AA'/%3E%3C/svg%3E">
+<style>/*FONTS*/</style>
+<style>/*STYLE*/</style>
+</head>
+<body>
+<header class="band">
+  <a class="mark" href="#" onclick="return false" aria-label="The Increaser">
+    <svg viewBox="0 0 64 64" aria-hidden="true">
+      <circle cx="30" cy="34" r="27" fill="#F7F2E8" stroke="#D2121E" stroke-width="4"/>
+      <rect x="49" y="26" width="13" height="8" rx="4" fill="#F7F2E8" stroke="#14100C" stroke-width="2"/>
+      <circle cx="30" cy="34" r="18" fill="#F7F2E8" stroke="#14100C" stroke-width="2.5"/>
+      <circle cx="30" cy="34" r="14" fill="#2B1A12"/>
+      <circle cx="30" cy="34" r="10" fill="#C99A62"/>
+      <circle cx="30" cy="34" r="6" fill="#EBD3AA"/>
+      <path d="M30 6 L35 13 H25 Z" fill="#D2121E"/>
+    </svg>
+    <b>the Increaser</b>
+  </a>
+  <span class="motto">Every pass, a little more</span>
+  <span class="sp"></span>
+  <button id="bTheme" title="Daytime or Late show">Late show</button>
+  <button id="bHelp">How it works</button>
+</header>
+
+<section class="deck" id="deck">
+  <div class="tgroup">
+    <button class="round" id="bPlay" title="Play / stop (P)" aria-label="Play"></button>
+    <button class="increase" id="bMain" title="Increase: record, layer, punch out (Space)"><span class="s">Increase</span><span class="k" id="mainK">Record</span><span class="h" id="mainH"></span></button>
+    <div class="tgroup" style="flex-direction:column;gap:6px">
+      <button class="round" id="bUndo" title="Undo (Backspace, or hold the main pedal)" aria-label="Undo"></button>
+      <button class="round" id="bRedo" title="Redo (Y)" aria-label="Redo"></button>
+    </div>
+  </div>
+  <div class="readout">
+    <div class="lbl" id="posLbl">Position</div>
+    <div class="big" id="pos">— —</div>
+    <div id="pos2">no loop yet</div>
+  </div>
+  <div class="tgroup tempo">
+    <button class="round" id="tDn" title="Tempo −1 (↓)" style="width:34px;height:34px">−</button>
+    <div class="bpm" id="bpm" title="Drag or scroll to change tempo; double-click to type" tabindex="0">120.0<small>BPM</small></div>
+    <button class="round" id="tUp" title="Tempo +1 (↑)" style="width:34px;height:34px">+</button>
+    <button class="pill" id="tTap" title="Tap tempo (T)">Tap</button>
+  </div>
+  <div class="tgroup" style="flex-direction:column;align-items:flex-start;gap:6px">
+    <div class="seg" id="segMode"></div>
+    <div class="held" id="held"></div>
+  </div>
+  <div class="meters">
+    <div class="meter">IN<i><b id="mIn"></b></i></div>
+    <div class="meter">OUT<i><b id="mOut"></b></i></div>
+  </div>
+  <div class="tgroup">
+    <button class="pill" id="bClick" title="Metronome">Click</button>
+    <button class="pill setrec" id="bSet" title="Record your whole set (master output) to a WAV">● Set</button>
+  </div>
+</section>
+
+<main class="stage">
+  <div class="cups" id="cups"></div>
+  <aside class="bar">
+    <nav class="tabs" id="tabs"></nav>
+    <div id="panes"></div>
+  </aside>
+</main>
+
+<footer class="foot">
+  <b>the Increaser</b> · part of the <a href="https://dawters-and-son.github.io/dawters-and-son/#suite" rel="noopener" style="color:inherit">DAWters and Son suite</a> · free software under the GNU GPL v3 or later ·
+  no sign-up, no tracking, no network requests · fonts: Yesteryear, Oswald, Courier Prime (SIL OFL 1.1)
+</footer>
+
+<div class="count" id="count"><div class="disc"><div class="who" id="cWho"></div><div class="num" id="cNum"></div><div class="sub" id="cSub"></div></div></div>
+<div class="toast" id="toast"></div>
+<div class="scrim" id="scrim"><div class="dlg" id="dlg"></div></div>
+
+<script type="text/plain" id="engine-src">/*ENGINE*/</script>
+<script>/*APP*/</script>
+</body>
+</html>

@@ -297,7 +297,7 @@ const A = {
     SUITE.show(t.id);
     return t;
   },
-  // ---------- the suite: ideas sent over from Eleosynth and Esperanza's Drum Kit ----------
+  // ---------- the suite: ideas sent over from Eleosynth, Esperanza's Drum Kit and The Increaser ----------
   // On the web, those apps open DAWters at #receive and post the idea once it says it is ready. Only the
   // suite's own sites (and this one) are listened to. In the desktop and Android builds they save a
   // .dawsuite.json file instead, which File → Import takes (as it does .edk projects and Eleosynth sounds).
@@ -331,11 +331,32 @@ const A = {
         if (!d.state || !d.state.proj) throw new Error('empty');
         this.commit('From the Drum Kit');
         const empty = !P.tracks.some((t) => t.clips.length);
-        if (empty && d.state.proj.bpm) this.eng.setBpm(U.clamp(+d.state.proj.bpm, 20, 300));
+        if (empty && d.state.proj.bpm) this.eng.setBpm(U.clamp(+d.state.proj.bpm, 20, 300)); this.syncTransport();
         const t = M.newTrack(P.tracks.length, { kind: 'beat', beat: { state: d.state }, stereo: true, input: '1+2', name: nm || d.state.proj.name || 'Beat' });
         place(t);
         this.changed({ graph: true, heads: true, console: true, clips: true });
         K.toast('“' + t.name + '” is on a Beat track — its song is placed at the playhead. Double-click it to edit.', 4500);
+      } else if (d.kind === 'stems') {
+        // The Increaser: one track per loop cup, all starting together, at the looper's tempo when the song is empty
+        const list = (d.tracks || []).filter((x) => x && x.audio && x.audio.ch && x.audio.ch.length);
+        if (!list.length) throw new Error('empty');
+        this.commit('From The Increaser');
+        const empty = !P.tracks.some((t) => t.clips.length);
+        if (empty && d.bpm) this.eng.setBpm(U.clamp(+d.bpm, 20, 300));
+        if (empty && d.bpb >= 2 && d.bpb <= 12 && P.sig) P.sig = [d.bpb, P.sig[1] || 4];
+        this.syncTransport();
+        const at = empty ? 0 : this.eng.pos();
+        for (const x of list) {
+          const chs = x.audio.ch.map((c) => U.b64f32(c));
+          const ab = this.eng.makeBuffer(chs, x.audio.sr || this.eng.sr);
+          const name = String(x.name || 'Loop').slice(0, 40);
+          const t = M.newTrack(P.tracks.length, { name, stereo: chs.length > 1, input: chs.length > 1 ? '1+2' : '1' });
+          const id = this.eng.addBuffer(ab, name);
+          t.clips.push({ id: U.uid('c'), buf: id, start: at, off: 0, len: ab.duration, gain: 1, fi: 0, fo: 0, name });
+          place(t);
+        }
+        this.changed({ graph: true, heads: true, console: true, clips: true });
+        K.toast(list.length + (list.length === 1 ? ' loop' : ' loops') + ' from The Increaser ' + (list.length === 1 ? 'is' : 'are') + ' on new tracks' + (empty ? ', from bar 1 at its tempo' : ' at the playhead'), 4500);
       } else if (d.kind === 'audio') {
         const a = d.audio; if (!a || !a.ch || !a.ch.length) throw new Error('empty');
         const chs = a.ch.map((b) => U.b64f32(b));
