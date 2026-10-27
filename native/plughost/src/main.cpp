@@ -16,7 +16,8 @@
 //   2  audio in:  u32 id, u32 frames, u32 channels, u32 events, f64 tempo, f64 ppq, u32 flags,
 //                 u32 timesig (num | den << 8), events × {i32 offset, u8 kind, u8 chan, u8 data1,
 //                 u8 0, f32 value}, then channels × frames f32 (planar)
-//      flags: 1 playing, 2 offline render.  kind: 0 note off, 1 note on, 2 all notes off
+//      flags: 1 playing, 2 offline render.  kind: 0 note off, 1 note on, 2 all notes off,
+//      3 controller (data1 = CC number, value 0..1), 4 pitch bend (value -1..1)
 //   3  audio out: u32 id, u32 frames, u32 channels, u32 status (0 ok, 1 passed through), samples
 #include "json.h"
 #include "ui.h"
@@ -34,6 +35,7 @@
 #include "pluginterfaces/vst/ivstcomponent.h"
 #include "pluginterfaces/vst/ivsteditcontroller.h"
 #include "pluginterfaces/vst/ivstevents.h"
+#include "pluginterfaces/vst/ivstmidicontrollers.h"
 #include "pluginterfaces/vst/ivstprocesscontext.h"
 
 #include <atomic>
@@ -173,6 +175,7 @@ struct Instance
 	IPtr<IComponent> comp;
 	IPtr<IEditController> ctrl;
 	IPtr<IAudioProcessor> proc;
+	IPtr<IMidiMapping> midiMap; // where a plug-in wants pitch bend, mod wheel and other controllers
 	HostProcessData pd;
 	ParameterChanges inChanges;
 	ParameterChangeTransfer xfer;
@@ -204,7 +207,7 @@ struct Instance
 			pd.unprepare ();
 		}
 		if (ctrl) ctrl->setComponentHandler (nullptr);
-		proc = nullptr; ctrl = nullptr; comp = nullptr;
+		midiMap = nullptr; proc = nullptr; ctrl = nullptr; comp = nullptr;
 		provider = nullptr; // terminates and disconnects the plug-in
 	}
 
@@ -350,6 +353,7 @@ static std::shared_ptr<Instance> createInstance (const std::string& path, const 
 	inst->comp = inst->provider->getComponentPtr ();
 	inst->ctrl = inst->provider->getControllerPtr ();
 	inst->proc = U::cast<IAudioProcessor> (inst->comp);
+	if (inst->ctrl) inst->midiMap = U::cast<IMidiMapping> (inst->ctrl);
 	if (!inst->comp || !inst->proc) { err = "This plug-in does not process audio"; return nullptr; }
 	if (inst->proc->canProcessSampleSize (kSample32) != kResultTrue) { err = "This plug-in needs 64-bit processing, which is not supported yet"; return nullptr; }
 	if (inst->ctrl)
@@ -425,6 +429,17 @@ static void addEvent (Instance* inst, const InEvent& e, int offset)
 		ev.noteOff.channel = e.chan; ev.noteOff.pitch = e.data1; ev.noteOff.velocity = 0; ev.noteOff.noteId = -1;
 		inst->events.addEvent (ev);
 	}
+	else if (e.kind == 3 || e.kind == 4)
+	{
+		// a controller (3: data1 = CC number, value 0..1) or pitch bend (4: value -1..1), as a parameter change
+		if (!inst->midiMap) return;
+		ParamID pid = kNoParamId;
+		CtrlNumber cn = e.kind == 4 ? (CtrlNumber)kPitchBend : (CtrlNumber)e.data1;
+		if (inst->midiMap->getMidiControllerAssignment (0, e.chan, cn, pid) != kResultTrue || pid == kNoParamId) return;
+		double v = e.kind == 4 ? (e.value + 1.0) * 0.5 : e.value;
+		int32 idx = 0, pi = 0;
+		if (auto q = inst->inChanges.addParameterData (pid, idx)) q->addPoint (offset, std::min (1.0, std::max (0.0, v)), pi);
+	}
 	else if (e.kind == 2)
 	{
 		for (int p = 0; p < 128; p++)
@@ -463,9 +478,9 @@ static void processBlock (Instance* inst, const float* in, int nin, float* out, 
 			}
 			bus.silenceFlags = 0;
 		}
+		inst->xfer.transferChangesTo (inst->inChanges); // edits from the plug-in's window first (offset 0), then this block's events
 		for (int i = 0; i < nev; i++)
 			if (evs[i].offset >= done && evs[i].offset < done + n) addEvent (inst, evs[i], evs[i].offset - done);
-		inst->xfer.transferChangesTo (inst->inChanges);
 		fillContext (inst, tempo, ppq + done / inst->sr / secsPerQ, flags, ts, n);
 		pd.numSamples = n;
 		inst->proc->process (pd);

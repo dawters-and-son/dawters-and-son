@@ -284,7 +284,7 @@ footer p { color: #B6AC98; max-width: 60ch; }
         <div class="f"><div class="k">Mix</div><h3>A console with a knob for everything</h3><p>Every strip has trim, filters, a four-band EQ, gate, compressor, tape and eight inserts. There are four mixbuses, and the master has true-peak limiting.</p></div>
         <div class="f"><div class="k">Make beats</div><h3>Instruments, patterns, MIDI</h3><p>A synth with 14 presets, a drum machine, a sampler, a piano roll and step grid, and a GrooveMatrix for launching patterns live. Plug in a MIDI keyboard and play.</p></div>
         <div class="f"><div class="k">Master</div><h3>16 mastering recipes</h3><p>Pick Pop, Hip-hop, Rock, Lo-fi, Podcast and more. Match a loudness target like −14 LUFS in one click, then A/B at equal loudness so you judge the sound and not the volume.</p></div>
-        <div class="f"><div class="k">Effects</div><h3>Hear it before you keep it</h3><p>Limiter, multiband, FET, opto and bus compressors, saturator, tube EQ, de-esser, doubler, tape echo, reverbs and more. Every effect has a Listen button with test sounds.</p></div>
+        <div class="f"><div class="k">Effects</div><h3>Hear it before you keep it</h3><p>Limiter, multiband, FET, opto and bus compressors, saturator, tube EQ, de-esser, doubler, tape echo, reverbs and more. Every effect has a Listen button with test sounds. On a computer, your VST3 plug-ins load too.</p></div>
         <div class="f"><div class="k">Clean up</div><h3>Noise removal and a tuner</h3><p>Sample a second of hiss and take it out of a whole take. Tune guitar, bass, uke or violin with a big, readable needle that works in the dark.</p></div>
       </div>
     </div>
@@ -305,7 +305,7 @@ footer p { color: #B6AC98; max-width: 60ch; }
         <table>
           <thead><tr><th>Free option</th><th>Runs on</th><th>Account</th><th>Track limit</th><th>Main catch</th></tr></thead>
           <tbody>
-            <tr><td>DAWters &amp; Son</td><td>Mac, Windows, Ubuntu, Android, browser</td><td class="yes">None</td><td class="yes">Unlimited</td><td>No third-party plugins yet</td></tr>
+            <tr><td>DAWters &amp; Son</td><td>Mac, Windows, Ubuntu, Android, browser</td><td class="yes">None</td><td class="yes">Unlimited</td><td>VST3 on desktop; no VST2 or AU yet</td></tr>
             <tr><td>Cakewalk Sonar (free tier)</td><td>Windows</td><td>BandLab account, periodic online reactivation</td><td>Unlimited</td><td>Core plugins and stretching held back</td></tr>
             <tr><td>Waveform Free</td><td>Windows, Mac</td><td>Tracktion account</td><td>Unlimited</td><td>Clip launcher, chord and arranger tracks are paid</td></tr>
             <tr><td>BandLab</td><td>Browser, iOS, Android</td><td>Required</td><td>16 tracks, 15 minutes</td><td>Ads, no plugins</td></tr>
@@ -322,7 +322,7 @@ footer p { color: #B6AC98; max-width: 60ch; }
 
   <section class="s" id="get">
     <div class="wrap">
-      <div class="title-card"><div class="eyebrow">Version 2.4.0</div><h2>Pick your machine.</h2><p>Every version is the same studio, with the same features and the same song files, so you can start on your phone and finish on your desk.</p></div>
+      <div class="title-card"><div class="eyebrow">Version 2.5.0</div><h2>Pick your machine.</h2><p>Every version is the same studio, with the same features and the same song files, so you can start on your phone and finish on your desk.</p></div>
       <div class="dl" id="dl"></div>
       <p class="src">The installers aren’t signed with paid certificates yet, so your computer may ask you to confirm the first time. The steps on each card show how.</p>
     </div>
@@ -437,7 +437,7 @@ footer p { color: #B6AC98; max-width: 60ch; }
         <details><summary>Do I need to sign up, or be online?</summary><p>No. Download it and it works offline. Your songs are saved on your device as .dawters files, and those open on any version.</p></details>
         <details><summary>Does it track me?</summary><p>No. The app has no analytics, no telemetry and no “phone home”. It never sends anything over the internet; your recordings and settings stay on your device. You can read the source to check.</p></details>
         <details><summary>Can I sell music I make with it?</summary><p>Yes. Your recordings are yours. The license covers the app’s code, not what you make with it.</p></details>
-        <details><summary>Does it load VST or AU plugins?</summary><p>Not yet. It ships with 24 built-in effects and three instruments. Plugin hosting is on the roadmap for the desktop versions.</p></details>
+        <details><summary>Does it load VST or AU plugins?</summary><p>VST3, yes, in the Mac, Windows and Linux apps (from version 2.5). Put any VST3 effect on a track, mixbus or the master, or add a VST3 instrument track. Each plug-in runs in its own helper process, so one that crashes can’t take your song down, and every track is delay-compensated. VST2 and AU aren’t supported, and the browser and Android versions use the 24 built-in effects and three instruments.</p></details>
         <details><summary>Why does my computer warn me when I install it?</summary><p>Mac and Windows show a warning for apps that aren’t signed with a paid developer certificate. The app is safe and the code is public. Each download card shows the two clicks that get past the warning.</p></details>
         <details><summary>Will it run on my phone or tablet?</summary><p>Yes, on Android 7 or newer. The Deck view has big controls built for touch: swipe a track right for its settings and left for its effects. There’s no iPhone or iPad version yet.</p></details>
         <details><summary>Is there a synth I can plug my guitar into?</summary><p>Yes: Eleosynth, the suite’s synthesizer and pedalboard. It has wavetables, a tine electric piano, granular textures and 39 effects, and it can play its synth from your guitar. It’s free and open source too; its website is linked in the Eleosynth section above.</p></details>
@@ -461,7 +461,7 @@ footer p { color: #B6AC98; max-width: 60ch; }
 // Where the files live: change these two lines if the project moves.
 const RELEASES = 'https://github.com/dawters-and-son/dawters-and-son/releases';
 const SOURCE = 'https://github.com/dawters-and-son/dawters-and-son';
-const V = '2.4.0';
+const V = '2.5.0';
 const file = (f) => RELEASES + '/download/v' + V + '/' + f;
 document.getElementById('srcLink').href = SOURCE;
 

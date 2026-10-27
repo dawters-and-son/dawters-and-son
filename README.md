@@ -1,4 +1,4 @@
-# DAWters and Son — v2.4.0
+# DAWters and Son — v2.5.0
 
 **Free software.** Copyright (C) 2026 Josh Wilk. Licensed under the GNU General Public License,
 version 3 or (at your option) any later version — see [LICENSE](LICENSE). Bundled third-party parts
@@ -13,8 +13,8 @@ processors, no UI libraries, works offline; ffmpeg for compressed exports) ships
 |---|---|---|
 | Mac (Apple Silicon) | `dist/DAWters-and-Son-2.2-arm64.dmg` | Electron 45 shell, ad-hoc signed — first launch needs *Open Anyway* in Privacy & Security; native ffmpeg inside |
 | Android 7.0+ | `dist/DAWters-and-Son-2.2.apk` | WebView shell, phones and tablets, saves to `Music/DAWters and Son/`; ffmpeg.wasm inside |
-| Windows 10/11 (x64) | `dist/DAWters-and-Son-2.4.0-Setup-x64.exe` (+ `-win-x64-portable.zip`) | Same Electron shell; per-user NSIS installer (no admin), Start-menu **D&S Tuner** shortcut, `.dawters` association, native ffmpeg.exe; unsigned → SmartScreen *More info › Run anyway* |
-| Ubuntu / Debian (amd64) | `dist/DAWters-and-Son-2.4.0-amd64.deb` | Same Electron shell; launcher + **D&S Tuner** launcher, `application/x-dawters` file type, hicolor icons, static ffmpeg, AppArmor profile for Ubuntu 24.04's user-namespace restriction |
+| Windows 10/11 (x64) | `dist/DAWters-and-Son-2.5.0-Setup-x64.exe` (+ `-win-x64-portable.zip`) | Same Electron shell; per-user NSIS installer (no admin), Start-menu **D&S Tuner** shortcut, `.dawters` association, native ffmpeg.exe; unsigned → SmartScreen *More info › Run anyway* |
+| Ubuntu / Debian (amd64) | `dist/DAWters-and-Son-2.5.0-amd64.deb` | Same Electron shell; launcher + **D&S Tuner** launcher, `application/x-dawters` file type, hicolor icons, static ffmpeg, AppArmor profile for Ubuntu 24.04's user-namespace restriction |
 | Localhost web | `dist/DAWters-and-Son-2.2-web.zip` | Double-click the starter → `http://localhost:8737`; also runs straight from `index.html` in Chrome (WAV export only that way) |
 
 ## Phase 1 features
@@ -60,6 +60,22 @@ import WAV/MP3/OGG/FLAC/M4A (drag and drop too), offline export of stereo mixdow
   a big Fade out button (ends on a bar line; press again to cancel), Stop at end of bar / loop, and an
   Android app (`increaser/android/build-apk.sh`, package `com.wilk.increaser`) that `build-all.sh` adds to
   each release, signed with the DAWters release key.
+
+## v2.5.0 — VST3 plug-ins (Mac, Windows, Linux desktop apps)
+
+- **Any VST3 effect as an insert** on a track, a mixbus or the master: the insert menus list your plug-ins,
+  grouped by maker. **Plug-in window** opens the plug-in's own controls; its settings are saved in the song.
+- **VST3 instrument tracks** (Track → Add VST3 instrument track): write notes in a pattern, play it from a
+  MIDI keyboard (pitch bend, mod wheel and other controllers reach it) or the computer keyboard; it renders
+  sample-accurately in exports, bounces and Freeze.
+- **Crash-proof:** plug-ins run in a separate helper program (`dawters-plughost`). If one crashes, your song
+  stays open and DAWters reloads the plug-ins from their last settings.
+- **Delay compensation:** every track is lined up with the slowest one (plug-in latency plus the plug-in
+  bridge), live and in exports; tracks you are monitoring through skip it, so playing along stays immediate.
+- **Settings › Plug-ins:** extra plug-in folders, Rescan, and the plug-in buffer (Tightest 3 ms … Safest 46 ms;
+  Safe, about 23 ms, by default). The standard VST3 folders are always searched.
+- Built on the Steinberg VST3 SDK (MIT license). VST2 plug-ins aren't supported (Steinberg no longer licenses
+  VST2). Linux runs plug-ins but can't show their windows yet. Not in the web or Android versions.
 
 ## v2.4.0 — the suite: Eleosynth and Esperanza's Drum Kit inside DAWters
 
@@ -420,5 +436,5 @@ Deck: 10–11 tracks at tablet landscape/portrait and phone sizes (rows scroll),
 ## Later phases (to be decided)
 
 Audacity-grade destructive editor, multiband / mid-side mastering tools and reference-track matching,
-MIDI on Android (USB MIDI through a native bridge), plugins (Web Audio Modules; native VST3/AU host
-for the Mac build only).
+MIDI on Android (USB MIDI through a native bridge), AU plug-ins on the Mac, plug-in windows on Linux,
+parameter automation for plug-ins.

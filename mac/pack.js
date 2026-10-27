@@ -6,7 +6,7 @@ const { packager } = require('@electron/packager');
     dir: __dirname + '/app', out: __dirname + '/out', overwrite: true,
     platform: 'darwin', arch: 'arm64', electronVersion: '45.0.0',
     name: 'DAWters and Son', executableName: 'DAWters and Son', appBundleId: 'com.wilk.dawters', appCategoryType: 'public.app-category.music',
-    appVersion: '2.4.0', buildVersion: '12', icon: __dirname + '/../build/icons/dawters.icns', asar: true, prune: false, osxSign: false,
+    appVersion: '2.5.0', buildVersion: '13', icon: __dirname + '/../build/icons/dawters.icns', asar: true, prune: false, osxSign: false,
     // the VST3 plug-in host (built on a Mac by .github/workflows/plughost.yml) goes in Resources/plughost
     extraResource: [__dirname + '/ffmpeg/ffmpeg', ...(require('fs').existsSync(__dirname + '/plughost') ? [__dirname + '/plughost'] : [])],
     appCopyright: 'Copyright © 2026 Josh Wilk. Free software under the GNU GPL v3 or later.',

@@ -591,6 +591,14 @@ class Engine {
     else if (st === 0x80 || (st === 0x90 && d[2] === 0)) { if (this.sustain) this.sustained.add(d[1]); else this.liveNote(target, false, d[1], 0); this.emit('note', { n: d[1], on: false }); }
     else if (st === 0xb0 && d[1] === 64) { const on = d[2] >= 64; if (!on && this.sustain) { for (const n of this.sustained) this.liveNote(target, false, n, 0); this.sustained.clear(); } this.sustain = on; }
     else if (st === 0xb0 && (d[1] === 123 || d[1] === 120)) this.panicInst();
+    // VST3 instruments also hear pitch bend and the other controllers (mod wheel, expression…)
+    if (st === 0xe0 || (st === 0xb0 && d[1] !== 64 && d[1] < 120)) {
+      const t = this.proj.tracks.find((x) => x.id === target), g = this.graph.tracks.get(target);
+      if (t && t.inst && t.inst.type === 'vst3' && g && g.inst) {
+        if (st === 0xe0) g.inst.port.postMessage({ t: 'cc', kind: 4, v: ((d[2] << 7 | d[1]) - 8192) / 8192 });
+        else g.inst.port.postMessage({ t: 'cc', kind: 3, cc: d[1], v: d[2] / 127 });
+      }
+    }
   }
   setBpm(bpm) { this.proj.bpm = bpm; this.graph.tempo(); SUITE.tempo(bpm); if (!this.playing) this.plugTransport(this.ctx.currentTime, this.position, false); this.reschedule(); }
   // ------- input & recording -------

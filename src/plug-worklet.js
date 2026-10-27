@@ -43,6 +43,7 @@ class DSPlug extends AudioWorkletProcessor {
       if (m.t === 'relay') { PLUG_RELAY = m.port; PLUG_RELAY.onmessage = plugRelayMsg; }
       else if (m.t === 'id') { if (this.id) PLUG_NODES.delete(this.id); this.id = m.id; this.bk = 0; this.seq = 0; this.replies.clear(); this.skipped.clear(); this.answered = -1; this.lastSent = -1; if (m.id) PLUG_NODES.set(m.id, this); }
       else if (m.t === 'ev') this.addEvents(m.ev.map((x) => [x[0], x[1] ? 1 : 0, 0, x[2], x[3]]));
+      else if (m.t === 'cc') this.ev.unshift([0, m.kind, 0, m.cc || 0, m.v]); // a controller or pitch bend, now
       else if (m.t === 'now') this.ev.unshift([0, m.k ? 1 : 0, 0, m.n, m.v || 0]); // played live: as soon as possible
       else if (m.t === 'clear' || m.t === 'panic') { this.ev = []; this.ev.push([0, 2, 0, 0, 0]); }
       else if (m.t === 'tp') this.tp = Object.assign(this.tp, m.tp);
