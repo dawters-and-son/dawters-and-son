@@ -23,34 +23,46 @@ add back up to the song exactly (measured: largest difference about −145 dB).
 2. **The rest** (STFT 4096 / hop 1024), from the song minus the drums:
    - **Stereo**: pan position and phase agreement per bin (Avendano 2003; Barry, Lawlor & Coyle 2004) give a
      centre score; time-smoothed inter-channel coherence gives the **room** (Avendano & Jot 2004).
-   - **Melody**: harmonic-sum salience on 180 pitch candidates (80–640 Hz), a Viterbi path, voicing from the path
-     salience; a harmonic comb on that path, weighted by a wide centre score, catches singers who are not centred.
+   - **Melody**: harmonic-sum salience on 180 pitch candidates (80–640 Hz) and a Viterbi path.
+   - **Soft voice detection** (1.1): z-scores of path salience, vocal-band energy and the *novelty* of the comb's
+     energy against a 1 s time median, through a sigmoid — a 0–1 "someone is singing" weight per frame.
+   - **Vocal vs band competition** (1.1, kernel additive modelling backfitting — Liutkus, Fitzgerald, Rafii, Pardo &
+     Daudet 2014 — with harmonic masks after Ikemiya, Itoyama & Yoshii 2016): on the tracked harmonics all energy
+     is candidate vocal (the stereo centre only weighs 50%), the accompaniment is modelled as what holds steady over
+     2 s (time median of the current accompaniment estimate), and a squared Wiener mask settles each bin; twice.
    - **Bass line**: the same tracker on 30–240 Hz; its harmonic comb (up to 1.2 kHz) joins a 250 Hz crossover.
-   - **Repetition**: the loop period from the autocorrelation of band energies, and an adaptive REPET model
-     (median of the spectrum ±1 and ±2 periods away; Rafii & Pardo 2013) that keeps loops out of the centre part
-     of the vocal estimate.
 3. Masks are smoothed over three frames; "other" is the residual, so the sum is exact by construction.
 
 Work is cut into chunks with margins and spread over a pool of Web Workers (one per core).
 
-### Measured (`tools/sdr_test.js`, SDR in dB against the true stems)
+### Measured (SDR in dB against the true stems; `tools/vocal_test.js`, `tools/sdr_test.js`)
 
-| Song (MUSDB18 sample / test data) | Vocals | Drums | Bass | Band | Mean |
-|---|---|---|---|---|---|
-| Music Delta – 80s Rock (7 s) | 7.3 | 7.7 | 5.3 | 4.3 | 6.2 |
-| The Easton Ellises – Falcon 69 (6 s, wide vocal) | 2.3 | 6.0 | 3.8 | 1.9 | 3.5 |
-| Loop test (32 s: a looped backing under non-repeating vocals) | 6.3 | 7.9 | 6.0 | 3.5 | 5.9 |
+Vocals, version 1.0 → 1.1:
 
-The parameters were tuned on these by coordinate search (`proto/` in the build session). Tried and **not** used: a
-stereo multichannel Wiener refinement (±0.2 dB, mixed across songs, and it breaks the exact sum) and stronger
-REPET weighting (hurt vocals when pitch tracking already works). A trained separator (Demucs) is cleaner; this is
-built for rebalancing and remastering, with a spectral editor for hand fixes.
+| Song | 1.0 | 1.1 |
+|---|---|---|
+| Music Delta – 80s Rock (MUSDB18 sample, 7 s) | 7.3 | 9.6 |
+| The Easton Ellises – Falcon 69 (6 s, wide vocal) | 2.3 | 3.0 |
+| Cristina Vane – So Easy (MUSDB18 test, 30 s) | 3.6 | 6.1 |
+| The Mountaineering Club – Mallory (MUSDB18 test, 30 s) | 4.2 | 4.7 |
+| Triviul feat. The Fiend – Widow (MUSDB18 test, 30 s) | 3.0 | 5.0 |
+| **Mean** | **4.1** | **5.7** |
 
-Speed: a 4-minute song presses in about 22 s on a 2-core machine in Chrome.
+In 1.1 the vocal stem keeps about twice as much of the singer (−5.4 → −2.4 dB of the true vocal's energy) while
+less of the band leaks in (signal-to-interference 6.6 → 8.0 dB). On the 4-stem samples drums are unchanged and
+bass/band improve (Rock: drums 7.7, bass 6.1, band 5.5). For scale: a perfect (oracle) mask at this resolution
+scores 9–15 dB; trained separators reach roughly 7–9 dB on MUSDB vocals.
+
+Investigated and **not** adopted (measured no gain or a loss): REPET-SIM similarity kernels, a stereo multichannel
+Wiener post-filter, an inter-harmonic octave penalty and peaks-only salience (fixed one song, broke another),
+a second pitch comb for harmony vocals, 2048 and 8192 windows. Re-tracking the pitch on the separated vocal
+(Ikemiya's mutual step) gained 0.06 dB for a whole extra pass, so it is left out.
+
+Speed: a 4-minute song presses in about 36 s on a 2-core machine in Chrome (more cores, faster).
 
 ## The app
 
-- **Press**: recipes (Balanced, Vocal focus, Beat-driven, Live & acoustic, Mono & vintage, Karaoke), 2/4/5 stems,
+- **Press**: recipes (Balanced, Vocal focus, Clean vocal, Live & acoustic, Mono & vintage, Karaoke), 2/4/5 stems,
   fine-tuning sliders, progress with stages, a report (levels, exact-sum check, tempo guess, melody coverage).
 - **Edit**: stacked lanes in Waveform or Spectral view. Select across lanes (level, silence, fade in/out, move to
   another stem) or draw a time × frequency box in Spectral view (move that sound to another stem, turn it down,
@@ -70,6 +82,7 @@ Speed: a 4-minute song presses in about 22 s on a 2-core machine in Chrome.
 ```
 python3 build.py                 # -> dist/frenchpress.html (one file) + dist/French-Press-<V>-web.zip
 sh android/build-apk.sh          # -> android/build/French-Press-<V>.apk (offline: aapt, javac, dx, zipalign, apksigner)
+node tools/vocal_test.js         # vocals, 1.0 vs 1.1 engine, on five songs with true stems
 node tools/sdr_test.js rock      # needs <name>_{mix,vocals,drums,bass,other}.wav in /home/claude/testdata
 python3 tools/ui_check.py /tmp/shots   # headless Chrome: demo -> press -> every tab -> edits -> export, console errors
 python3 tools/long_test.py song.wav    # timing on a long song

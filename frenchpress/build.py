@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Build France's French Press into one self-contained HTML file: dist/frenchpress.html"""
 import base64, os, re, pathlib, zipfile
-V = '1.0.0'
+V = '1.1.0'
 ROOT = pathlib.Path(__file__).parent
 SRC, DIST = ROOT / 'src', ROOT / 'dist'
 VENDOR = ROOT / 'vendor'

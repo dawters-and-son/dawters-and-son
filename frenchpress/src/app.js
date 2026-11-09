@@ -2,7 +2,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later  Copyright (C) 2026 Josh Wilk */
 (function () {
   'use strict';
-  var $ = UI.$, $$ = UI.$$, el = UI.el, VERSION = '1.0.0';
+  var $ = UI.$, $$ = UI.$$, el = UI.el, VERSION = '1.1.0';
 
   // ---------------------------------------------------------------- constants
   var STEM = {
@@ -11,25 +11,25 @@
   };
   function color(n) { return UI.css('--' + n); }
   var RECIPES = [
-    { id: 'balanced', name: 'Balanced', desc: 'The all-rounder for modern stereo mixes: singer in the middle, band around them.', p: {} },
-    { id: 'vocal', name: 'Vocal focus', desc: 'Leans on pitch tracking and the centre image for the cleanest voice.', p: { width: 0.2, mel: 0.8, rep: 0.4 } },
-    { id: 'beat', name: 'Beat-driven', desc: 'Hip-hop, EDM, pop built on loops: finds what repeats every bar and keeps it in the band.', p: { rep: 0.6, mel: 0.7, kickLen: 0.14 } },
-    { id: 'live', name: 'Live & acoustic', desc: 'Real rooms and wide players: gentler drum pull, more of the room kept apart.', p: { kick: 0.6, beta: 2.0, width: 0.35, rep: 0, ambience: 1 } },
-    { id: 'mono', name: 'Mono & vintage', desc: 'One-channel or narrow old records: pitch and repetition do the work the stereo image cannot.', p: { width: 1.0, mel: 0.9, rep: 0.5, ambience: 0 } },
+    { id: 'balanced', name: 'Balanced', desc: 'The all-rounder: the singer is followed by pitch and pulled away from what the band holds steady.', p: {} },
+    { id: 'vocal', name: 'Vocal focus', desc: 'Catches more of the voice, breaths and tails included, at the cost of a little more band in the vocal.', p: { softThr: -0.4, v2A: 0.3, v2Unv: 0.35 } },
+    { id: 'clean', name: 'Clean vocal', desc: 'The cleanest voice for a cappellas and remixes: stricter about what counts as singing. Thinner, but less bleed.', p: { softThr: 0.5, v2Q: 3 } },
+    { id: 'live', name: 'Live & acoustic', desc: 'Real rooms and wide players: gentler drum pull, more of the room kept apart.', p: { kick: 0.6, beta: 2.0, width: 0.35, ambience: 1 } },
+    { id: 'mono', name: 'Mono & vintage', desc: 'One-channel or narrow old records: pitch and steadiness do the work the stereo image cannot.', p: { width: 1.0, v2A: 0, ambience: 0 } },
     { id: 'karaoke', name: 'Karaoke', desc: 'Two stems: the voice and everything else. Mute the voice to sing along.', p: { stems: 2 } }
   ];
   var SLIDERS = [
+    { g: 'Vocals', k: 'v2Q', l: 'Vocal clean-up', min: 1, max: 4, step: 0.25, f: function (v) { return v <= 1.25 ? 'full, natural' : v >= 3.5 ? 'cleanest' : v.toFixed(2) + '×'; } },
+    { g: 'Vocals', k: 'softThr', l: 'Voice detection', min: -1.5, max: 1.5, step: 0.1, f: function (v) { return Math.abs(v) < 0.05 ? 'normal' : v < 0 ? 'catch more (' + v.toFixed(1) + ')' : 'stricter (+' + v.toFixed(1) + ')'; } },
+    { g: 'Vocals', k: 'v2Tmed', l: 'Band steadiness window', min: 0.5, max: 4, step: 0.1, f: function (v) { return v.toFixed(1) + ' s'; } },
     { g: 'Vocals', k: 'width', l: 'Centre width', min: 0.05, max: 1, step: 0.01, f: function (v) { return v.toFixed(2); } },
     { g: 'Vocals', k: 'vocalPan', l: 'Singer position (L–R)', min: -0.6, max: 0.6, step: 0.01, f: function (v) { return Math.abs(v) < 0.005 ? 'centre' : (v < 0 ? 'L ' : 'R ') + Math.abs(v).toFixed(2); } },
-    { g: 'Vocals', k: 'mel', l: 'Pitch tracking', min: 0, max: 1, step: 0.05, f: pct },
     { g: 'Vocals', k: 'vlo', l: 'Lowest vocal note', min: 60, max: 400, step: 5, f: hz },
-    { g: 'Vocals', k: 'vhi', l: 'Highest vocal air', min: 4000, max: 20000, step: 100, f: hz },
     { g: 'Drums', k: 'beta', l: 'Drum strictness', min: 0.6, max: 4, step: 0.1, f: function (v) { return v.toFixed(1) + '×'; } },
     { g: 'Drums', k: 'kick', l: 'Kick capture', min: 0, max: 1, step: 0.05, f: pct },
     { g: 'Drums', k: 'kickLen', l: 'Kick length', min: 0.06, max: 0.3, step: 0.01, f: function (v) { return Math.round(v * 1000) + ' ms'; } },
     { g: 'Bass', k: 'bassFc', l: 'Bass crossover', min: 80, max: 500, step: 5, f: hz },
     { g: 'Bass', k: 'bmel', l: 'Bass-line tracking', min: 0, max: 1, step: 0.05, f: pct },
-    { g: 'Band & room', k: 'rep', l: 'Loop removal', min: 0, max: 1, step: 0.05, f: pct },
     { g: 'Band & room', k: 'ambience', l: 'Room amount (5 stems)', min: 0, max: 1.5, step: 0.05, f: pct },
     { g: 'Band & room', k: 'smooth', l: 'Smoothing', min: 0, max: 1, step: 1, f: function (v) { return v ? 'on' : 'off'; } }
   ];
@@ -858,7 +858,7 @@
     await restoreProject(pj);
   }
   async function restoreProject(pj) {
-    S.recipe = pj.recipe || 'balanced'; S.params = Object.assign({}, DSP.DEFAULTS, pj.params); renderRecipes(); renderStemSeg(); renderAdvanced();
+    S.recipe = pj.recipe || 'balanced'; S.params = Object.assign({}, DSP.DEFAULTS, pj.params); if (pj.params && pj.params.vMode === undefined) S.params.vMode = 1; // 1.0 projects press exactly as before renderRecipes(); renderStemSeg(); renderAdvanced();
     if (pj.mix) S.st = pj.mix;
     await runSplit();
     if (!S.split) return;
@@ -990,9 +990,9 @@
     UI.dialog('<h2 class="title">How the press works</h2><p>No trained model is involved. Each stem is a <i>mask</i> over the song\'s spectrum — for every slice of time and every frequency, a share between 0 and 1 of what the song has there. The shares always add up to one, so the stems add back up to the song exactly.</p><ol>' +
       '<li><b>Drums.</b> Sustained notes are horizontal lines in a spectrogram; hits are vertical. Median filters across time and across frequency tell them apart (harmonic–percussive separation, Fitzgerald 2010; Driedger, Müller &amp; Disch 2014). Kicks are too low and too long for that, so a separate detector takes the short bursts that rise above the low end\'s sustained floor.</li>' +
       '<li><b>Where things sit.</b> Comparing left and right in every bin gives a pan position and how much the two sides agree (Avendano 2003; Barry, Lawlor &amp; Coyle 2004). Singers usually sit in the middle; the room and the reverb are what the two sides <i>don\'t</i> share (Avendano &amp; Jot 2004) — that becomes the Room stem.</li>' +
-      '<li><b>The melody and the bass line.</b> A pitch tracker scores every possible note in every frame by how much energy sits on its harmonics, then follows the most likely path (Viterbi). A comb over that path\'s harmonics catches the voice even when it is not in the centre. A second tracker follows the bass line and pulls its harmonics into the Bass stem.</li>' +
-      '<li><b>What repeats.</b> Loops and riffs repeat bar after bar; a voice usually does not. A median of the spectrum one and two repeats away models the loop (adaptive REPET, Rafii &amp; Pardo 2013; Liutkus et al. 2012) and keeps it out of the vocal.</li></ol>' +
-      '<p>Tested against songs with their real multitrack stems (MUSDB18 samples), the defaults were tuned for the best average signal-to-distortion over vocals, drums, bass and the band.</p><p><b>Honest limits.</b> A trained separator (Demucs, Spleeter) is cleaner, especially for a clean a cappella. French Press is at its best for rebalancing a mix: a louder voice, a tighter low end, quieter cymbals, more or less room — and the spectral editor lets you hand-move what the press got wrong.</p><div class="row" style="justify-content:flex-end"><button class="btn" data-close>Close</button></div>');
+      '<li><b>The voice.</b> A pitch tracker scores every possible note in every frame by the energy on its harmonics and follows the most likely path (Viterbi). A soft voice detector — pitch strength, loudness, and how new the sound is against the last second — decides when someone is singing. On the singer\'s harmonics, the voice then <i>competes</i> with a model of the accompaniment: what holds steady over about two seconds (kernel additive modelling, Liutkus et al. 2014; harmonic masks after Ikemiya, Itoyama &amp; Yoshii 2016). A Wiener mask settles each bin, twice. The stereo centre only nudges, so reverb-widened vocals are kept.</li>' +
+      '<li><b>The bass line.</b> A second tracker follows the bass and pulls its harmonics into the Bass stem.</li></ol>' +
+      '<p>Tested against five songs with their real multitrack stems (MUSDB18 test material): version 1.1 raised the average vocal signal-to-distortion from 4.1 to 5.7 dB, kept about twice as much of the singer, and let less of the band into the vocal.</p><p><b>Honest limits.</b> A trained separator (Demucs, Spleeter) is cleaner, especially for a clean a cappella. French Press is at its best for rebalancing a mix: a louder voice, a tighter low end, quieter cymbals, more or less room — and the spectral editor lets you hand-move what the press got wrong.</p><div class="row" style="justify-content:flex-end"><button class="btn" data-close>Close</button></div>');
   }
   function shortcuts() {
     UI.dialog('<h2 class="title">Keyboard</h2><p><b>Space</b> play / pause · <b>Home</b> to start · <b>L</b> loop the selection · <b>A</b> remaster / original<br><b>Ctrl+Z</b> undo · <b>Ctrl+Shift+Z</b> or <b>Ctrl+Y</b> redo · <b>Delete</b> silence the selection · <b>M</b> move the selection<br><b>+ / −</b> zoom · <b>0</b> fit · <b>W</b> waveform / spectral · <b>Esc</b> clear the selection<br>Alt+wheel or Ctrl+wheel zooms the timeline; two fingers pinch on touch screens.</p><div class="row" style="justify-content:flex-end"><button class="btn" data-close>Close</button></div>');
