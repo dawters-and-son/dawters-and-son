@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 Josh Wilk. Part of DAWters and Son; see LICENSE for terms (no warranty).
 # Assemble the public website into _site/: the marketing page at /, the studio at /app/ and the suite's
-# live looper, The Increaser, at /increaser/.
+# live looper, The Increaser, at /increaser/ and its stem splitter, France's French Press, at /french-press/.
 set -e
 cd "$(dirname "$0")/.."
 python3 build.py
@@ -12,6 +12,8 @@ cp dist/dawters.html _site/app/index.html
 cp dist/ff/ffmpeg-core.js dist/ff/ffmpeg-core.wasm dist/ff/THIRD-PARTY.txt _site/app/ff/
 (cd increaser && python3 build.py >/dev/null)
 mkdir -p _site/increaser && cp increaser/dist/increaser.html _site/increaser/index.html
+(cd frenchpress && python3 build.py >/dev/null)
+mkdir -p _site/french-press && cp frenchpress/dist/frenchpress.html _site/french-press/index.html
 cp LICENSE _site/LICENSE.txt
 touch _site/.nojekyll
 du -sh _site

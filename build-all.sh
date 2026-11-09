@@ -6,7 +6,7 @@
 #   mac:     node + npm (Electron is downloaded once), rcodesign (cargo install apple-codesign),
 #            libdmg-hfsplus "hfsplus" + "dmg" tools, hfsprogs (mkfs.hfsplus). On a Mac you can instead run
 #            mac/pack.js and then: codesign --force --deep -s - "mac/out/.../DAWters and Son.app" && hdiutil create ...
-#   android: see android/build-apk.sh (and increaser/android/build-apk.sh)
+#   android: see android/build-apk.sh (and increaser/android/build-apk.sh, frenchpress/android/build-apk.sh)
 #   linux:   dpkg-deb; Electron for linux is downloaded once
 #   windows: makensis (apt install nsis); Electron for win32 is downloaded once; ffmpeg.exe from @ffmpeg-installer/win32-x64
 set -e
@@ -54,5 +54,14 @@ if [ "$SKIP_ANDROID" != 1 ]; then
   if [ -z "$INCREASER_KEYSTORE" ] && [ -n "$DAWTERS_KEYSTORE" ]; then INCREASER_KEYSTORE=$DAWTERS_KEYSTORE; INCREASER_KS_PASS=$DAWTERS_KS_PASS; INCREASER_KS_ALIAS=dawters; fi
   INCREASER_KEYSTORE=$INCREASER_KEYSTORE INCREASER_KS_PASS=$INCREASER_KS_PASS INCREASER_KS_ALIAS=${INCREASER_KS_ALIAS:-increaser} sh increaser/android/build-apk.sh
   cp "increaser/android/build/The-Increaser-$IV.apk" dist/
+fi
+# France's French Press (the suite's stem splitter) ships with each release the same way: its web zip always, its APK
+# with FRENCHPRESS_KEYSTORE / FRENCHPRESS_KS_PASS, or the DAWters release key when those are not set.
+FV=$(sed -n "s/^V = '\(.*\)'/\1/p" frenchpress/build.py)
+(cd frenchpress && python3 build.py >/dev/null) && cp "frenchpress/dist/French-Press-$FV-web.zip" dist/
+if [ "$SKIP_ANDROID" != 1 ]; then
+  if [ -z "$FRENCHPRESS_KEYSTORE" ] && [ -n "$DAWTERS_KEYSTORE" ]; then FRENCHPRESS_KEYSTORE=$DAWTERS_KEYSTORE; FRENCHPRESS_KS_PASS=$DAWTERS_KS_PASS; FRENCHPRESS_KS_ALIAS=dawters; fi
+  FRENCHPRESS_KEYSTORE=$FRENCHPRESS_KEYSTORE FRENCHPRESS_KS_PASS=$FRENCHPRESS_KS_PASS FRENCHPRESS_KS_ALIAS=${FRENCHPRESS_KS_ALIAS:-frenchpress} sh frenchpress/android/build-apk.sh
+  cp "frenchpress/android/build/French-Press-$FV.apk" dist/
 fi
 ls -la dist

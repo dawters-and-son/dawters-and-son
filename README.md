@@ -46,6 +46,17 @@ Wobble Tremolo, Tangerine Tube Drive, Rainbow 10-band Graphic EQ.
 import WAV/MP3/OGG/FLAC/M4A (drag and drop too), offline export of stereo mixdown or stems (zip),
 16-bit dithered / 24 / 32-float, 44.1/48/96 kHz, tail, normalize; export reports peak and integrated LUFS.
 
+## Website update — France's French Press joins the suite
+
+- **France's French Press**, the suite's stem splitter and remaster studio, lives in `frenchpress/` and is
+  published with the website at `/french-press/` (built by `tools/assemble_site.sh`). It presses a finished song
+  into vocals, drums, bass, band and room with signal processing (no AI model), on every core of the device, and
+  the stems add back up to the original exactly. Per-stem console, waveform and spectral editing with undo,
+  mastering to loudness targets, WAV/MP3 export, `.frenchpress` projects. See `frenchpress/README.md`.
+- Its raw stems import here as tracks (File › Import, or drag the WAVs in). Android app:
+  `frenchpress/android/build-apk.sh`, package `com.wilk.frenchpress`; `build-all.sh` adds its web zip and APK
+  to each release.
+
 ## Website update (in the next desktop and Android release) — The Increaser joins the suite
 
 - **The Increaser**, the suite's live looper, now lives in `increaser/` and is published with the website

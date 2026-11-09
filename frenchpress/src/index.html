@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#14100C">
+<title>France's French Press — stem splitter &amp; remaster studio</title>
+<!--FONTS-->
+<style>/*STYLE*/</style>
+</head>
+<body class="grain">
+<div id="opening"><div><div class="w">France’s French Press</div><div class="s">Separate the grounds</div></div></div>
+
+<header id="band">
+  <div id="brand">
+    <svg viewBox="0 0 34 40" aria-hidden="true"><!--LOGO--></svg>
+    <div><span class="word">France’s French Press</span><span class="tag">a DAWters &amp; Son production</span></div>
+  </div>
+  <nav id="tabs">
+    <button data-tab="press" class="on">Press</button>
+    <button data-tab="edit" disabled>Edit</button>
+    <button data-tab="mix" disabled>Mix</button>
+    <button data-tab="master" disabled>Master</button>
+    <button data-tab="export" disabled>Export</button>
+  </nav>
+  <div id="transport">
+    <button class="tbtn" id="homeBtn" title="To start (Home)"><svg viewBox="0 0 16 16"><path d="M2 2h2v12H2zM14 2v12L5 8z"/></svg></button>
+    <button class="tbtn" id="playBtn" title="Play / pause (Space)"><svg viewBox="0 0 16 16"><path id="playIcon" d="M3 2l11 6-11 6z"/></svg></button>
+    <button class="tbtn" id="loopBtn" title="Loop the selection (L)"><svg viewBox="0 0 16 16"><path d="M4 4h7V2l4 3-4 3V6H4a2 2 0 0 0-2 2H0a4 4 0 0 1 4-4zm8 8H5v2l-4-3 4-3v2h7a2 2 0 0 0 2-2h2a4 4 0 0 1-4 4z"/></svg></button>
+    <div id="clock">0:00.0 <small>/ 0:00.0</small></div>
+    <button class="pill" id="abBtn" title="Compare with the original (A)"><span class="r">Remaster</span><span class="o">Original</span></button>
+    <canvas id="bandMeter" width="148" height="60"></canvas>
+    <button id="menuBtn" title="Menu" aria-label="Menu">☰</button>
+  </div>
+</header>
+
+<main>
+  <!-- PRESS -->
+  <section class="view" id="v-press">
+    <div class="hero">
+      <div id="welcome">
+        <h1 class="title">Separate the grounds.</h1>
+        <p class="lede">Pour in a finished song and France’s French Press pulls it apart into vocals, drums, bass, the rest of the band and the room, then lets you re-EQ, re-balance, edit and re-master each part. It all runs on this device with signal processing you can read — no AI model, no upload, no account.</p>
+        <div id="resume" class="card hidden" style="margin:14px 0"></div>
+        <div id="drop">
+          <div class="title">Drop a song here</div>
+          <p class="muted">WAV, MP3, FLAC, M4A/AAC, OGG — or a saved <b>.frenchpress</b> project</p>
+          <div class="row" style="justify-content:center">
+            <button class="btn primary big" id="openBtn">Choose a song</button>
+            <button class="btn" id="demoBtn">Try the demo song</button>
+          </div>
+          <input type="file" id="fileIn" accept="audio/*,.wav,.mp3,.flac,.m4a,.aac,.ogg,.opus,.frenchpress" class="hidden">
+        </div>
+      </div>
+      <div id="setup" class="hidden">
+        <div class="card" id="fileCard"></div>
+        <h2 class="title" style="margin:18px 0 8px">Pick a recipe</h2>
+        <div class="recipes" id="recipes"></div>
+        <div class="row" style="margin:16px 0 8px">
+          <span class="lbl">Stems</span>
+          <div class="seg" id="stemSeg"><button data-n="2">2 · vocals + band</button><button data-n="4">4 · vocals drums bass other</button><button data-n="5">5 · + room</button></div>
+        </div>
+        <details id="advanced" style="margin:12px 0"><summary>Fine tune the press</summary><div class="adv" id="advGrid" style="margin-top:12px"></div></details>
+        <div class="row" style="margin-top:14px">
+          <button class="btn red big" id="pressBtn">Press it</button>
+          <button class="btn" id="newBtn">Open another song</button>
+          <span class="muted" id="coresInfo"></span>
+        </div>
+        <div id="progress" class="card hidden" style="margin-top:16px">
+          <div class="row" style="justify-content:space-between"><b class="lbl" id="progLabel">Pressing</b><span class="muted" id="progTime"></span></div>
+          <div class="bar" style="margin-top:8px"><i id="progBar"></i></div>
+          <ul class="steps" id="progSteps"></ul>
+          <button class="btn sm" id="cancelBtn">Cancel</button>
+        </div>
+        <div id="result" class="card hidden" style="margin-top:16px"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- EDIT -->
+  <section class="view full hidden" id="v-edit">
+    <div id="editBar">
+      <div class="seg" id="modeSeg"><button data-m="wave" class="on">Waveform</button><button data-m="spec">Spectral</button></div>
+      <span class="sep"></span>
+      <button class="btn sm" id="zOut" title="Zoom out (-)">−</button><button class="btn sm" id="zFit" title="Fit the song">Fit</button><button class="btn sm" id="zIn" title="Zoom in (+)">+</button>
+      <span class="sep"></span>
+      <button class="btn sm" data-op="gain">Level…</button>
+      <button class="btn sm" data-op="silence" title="Delete">Silence</button>
+      <button class="btn sm" data-op="fadein">Fade in</button>
+      <button class="btn sm" data-op="fadeout">Fade out</button>
+      <button class="btn sm" data-op="move">Move to…</button>
+      <span class="sep"></span>
+      <button class="btn sm" id="undoBtn" title="Undo (Ctrl+Z)">Undo</button><button class="btn sm" id="redoBtn" title="Redo (Ctrl+Shift+Z)">Redo</button>
+      <span id="selInfo">Drag across the lanes to select. In Spectral, drag a box around a sound.</span>
+    </div>
+    <canvas id="overview"></canvas>
+    <div id="tlWrap"><div id="laneHeads"></div><canvas id="timeline"></canvas></div>
+  </section>
+
+  <!-- MIX -->
+  <section class="view hidden" id="v-mix">
+    <div class="row" style="justify-content:space-between;margin-bottom:10px">
+      <h2 class="title">The console</h2>
+      <div class="moves" id="moves"></div>
+    </div>
+    <div id="strips"></div>
+    <div id="detail"></div>
+  </section>
+
+  <!-- MASTER -->
+  <section class="view hidden" id="v-master">
+    <div class="row" style="justify-content:space-between;margin-bottom:10px">
+      <h2 class="title">Mastering</h2>
+      <div class="moves" id="mrecipes"></div>
+    </div>
+    <div class="mgrid">
+      <div>
+        <canvas id="spec"></canvas>
+        <div class="row muted" style="font-size:12px;margin:4px 0 12px"><span>━ remaster</span><span>┅ original (level-matched)</span></div>
+        <div id="mchain"></div>
+      </div>
+      <div>
+        <div class="section">
+          <h4>Loudness <span class="muted" id="loudNote">live ≈</span></h4>
+          <div class="loud">
+            <div><div class="v" id="lM">–</div><div class="k">Momentary LUFS</div></div>
+            <div><div class="v" id="lS">–</div><div class="k">Short-term LUFS</div></div>
+            <div><div class="v" id="lP">–</div><div class="k">Peak dBFS</div></div>
+          </div>
+          <div class="tbar"><i id="tFill"></i><b id="tMark"></b></div>
+          <div class="row" style="justify-content:space-between;font-size:12px"><span class="muted">−30</span><span id="tLabel"></span><span class="muted">−6</span></div>
+          <div class="row" style="margin-top:10px"><span class="lbl">Target</span><select id="targetSel" class="btn sm"></select></div>
+          <div class="row" style="margin-top:10px">
+            <button class="btn" id="analyseBtn">Analyse</button>
+            <button class="btn primary" id="matchBtn">Match target</button>
+            <label class="row" style="gap:6px;font-size:12px"><input type="checkbox" id="previewChk"> Hear at target</label>
+          </div>
+          <div class="report" id="analysis" style="margin-top:10px"></div>
+        </div>
+        <div class="section" style="margin-top:14px">
+          <h4>Compare</h4>
+          <p style="margin:0 0 8px;font-size:13px">Press <b>A</b> or the Remaster / Original pill to flip between the two. The original is played at the remaster's loudness so you judge the sound, not the volume.</p>
+          <label class="row" style="gap:6px;font-size:13px"><input type="checkbox" id="matchChk" checked> Level-match the original <span class="muted" id="matchDb"></span></label>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- EXPORT -->
+  <section class="view hidden" id="v-export">
+    <div class="hero" style="max-width:900px">
+      <h2 class="title">Take it home</h2>
+      <div class="grid2" style="margin-top:12px">
+        <div class="card checks">
+          <div class="lbl">What</div>
+          <label><input type="checkbox" id="xMix" checked><span><b>Remastered mix</b><br><span class="muted">Every stem through its strip and the master chain.</span></span></label>
+          <label><input type="checkbox" id="xProc"><span><b>Processed stems</b><br><span class="muted">Each stem through its own strip (EQ, compression, level), no master.</span></span></label>
+          <label><input type="checkbox" id="xRaw"><span><b>Raw stems</b><br><span class="muted">Exactly as pressed and edited — for your DAW. They add up to the original.</span></span></label>
+          <div class="lbl" style="margin-top:10px">Range</div>
+          <div class="seg" id="rangeSeg"><button data-r="all" class="on">Whole song</button><button data-r="sel">Selection</button></div>
+        </div>
+        <div class="card checks">
+          <div class="lbl">Format</div>
+          <select id="fmtSel" class="btn" style="margin:6px 0">
+            <option value="wav24">WAV · 24-bit</option><option value="wav16">WAV · 16-bit (dithered)</option><option value="wav32">WAV · 32-bit float</option>
+            <option value="mp3-320">MP3 · 320 kbps</option><option value="mp3-256">MP3 · 256 kbps</option><option value="mp3-192">MP3 · 192 kbps</option>
+          </select>
+          <div class="lbl" style="margin-top:8px">Mix loudness</div>
+          <label><input type="radio" name="loud" value="target" checked><span>Master to the target <span class="muted" id="xTarget"></span></span></label>
+          <label><input type="radio" name="loud" value="mixed"><span>As mixed (safety limiter at the ceiling)</span></label>
+          <label><input type="radio" name="loud" value="peak"><span>Peak-normalise to the ceiling</span></label>
+          <label style="margin-top:6px"><input type="checkbox" id="xZip" checked><span>One .zip when there is more than one file</span></label>
+        </div>
+      </div>
+      <div class="row" style="margin-top:16px"><button class="btn red big" id="exportBtn">Export</button><span id="exportStatus" class="muted"></span></div>
+      <div class="card report" id="exportReport" style="margin-top:14px;display:none"></div>
+      <hr class="rule2">
+      <div class="row"><button class="btn" id="saveProjBtn">Save project (.frenchpress)</button><span class="muted" style="font-size:12px">Keeps the song, the recipe, every edit and every knob. Opening it presses the song again and replays your edits.</span></div>
+    </div>
+  </section>
+</main>
+<div id="scrim" class="hidden"><div class="dialog" id="dialog"></div></div>
+<div id="toast" class="hidden"></div>
+<script id="dsp-src">/*DSP*/</script>
+<script id="lame-src" type="text/plain">/*LAME*/</script>
+<script>/*APP*/</script>
+</body>
+</html>
