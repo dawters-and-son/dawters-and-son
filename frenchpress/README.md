@@ -46,6 +46,11 @@ stereo multichannel Wiener refinement (±0.2 dB, mixed across songs, and it brea
 REPET weighting (hurt vocals when pitch tracking already works). A trained separator (Demucs) is cleaner; this is
 built for rebalancing and remastering, with a spectral editor for hand fixes.
 
+**1.1 was withdrawn (1.1.1 restores this engine).** 1.1 replaced the vocal share with a pitch-comb vs
+time-median-accompaniment Wiener competition and soft voicing (KAM / Ikemiya-style). It scored higher on SDR
+(mean vocal 4.1 -> 5.7 dB on five MUSDB excerpts) but sounded worse in listening tests, so the metric is not
+to be trusted on its own for vocals here; future changes need a listening check, not just SDR.
+
 Speed: a 4-minute song presses in about 22 s on a 2-core machine in Chrome.
 
 ## The app
