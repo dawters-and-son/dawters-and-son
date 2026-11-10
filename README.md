@@ -46,13 +46,6 @@ Wobble Tremolo, Tangerine Tube Drive, Rainbow 10-band Graphic EQ.
 import WAV/MP3/OGG/FLAC/M4A (drag and drop too), offline export of stereo mixdown or stems (zip),
 16-bit dithered / 24 / 32-float, 44.1/48/96 kHz, tail, normalize; export reports peak and integrated LUFS.
 
-## France's French Press 1.1 — cleaner, fuller vocals
-
-- New vocal model: soft voice detection and a vocal-vs-accompaniment Wiener competition (kernel additive
-  modelling with harmonic masks). Average vocal SDR on five songs with true stems 4.1 → 5.7 dB; see
-  `frenchpress/README.md`. New recipe *Clean vocal*; new controls *Vocal clean-up* and *Voice detection*.
-  Projects saved with 1.0 press exactly as before.
-
 ## Website update — France's French Press joins the suite
 
 - **France's French Press**, the suite's stem splitter and remaster studio, lives in `frenchpress/` and is

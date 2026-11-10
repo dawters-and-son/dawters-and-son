@@ -114,10 +114,7 @@ var DSP = (function () {
     bassFc: 250, vlo: 160, vhi: 14000, rep: 0.3, repK: 2,
     mel: 0.7, melW: 0.015, melWidth: 0.6, salPow: 0.75, hDecay: 0.85,
     bmel: 0.6, bassTop: 1200, bassNh: 12, bassW: 0.02,
-    voicePct: 35, bassVoicePct: 20, smooth: 1,
-    // v1.1 vocal model: harmonic comb vs a time-median accompaniment model (KAM-style backfitting), soft voicing
-    vMode: 2, v2Tmed: 2.0, v2Q: 2, v2Iters: 2, v2Unv: 0.25, v2Floor: 0.08, v2A: 0.5,
-    softThr: 0, softS: 0.7, novW: 1, novT: 1.0
+    voicePct: 35, bassVoicePct: 20, smooth: 1
   };
   function sizes(sr) {
     var scale = sr > 64000 ? 2 : 1;
@@ -257,31 +254,9 @@ var DSP = (function () {
     var ps = new Float64Array(T); for (t = 0; t < T; t++) ps[t] = sal[t * nc + path[t]];
     var sorted = Array.from(ps).sort(function (a, b) { return a - b; });
     var thr = sorted[Math.min(T - 1, Math.floor(pct / 100 * (T - 1)))];
-    var f0 = new Float32Array(T), f0all = new Float32Array(T), psn = new Float32Array(T);
-    for (t = 0; t < T; t++) { f0all[t] = fmin * Math.pow(2, path[t] * 20 / 1200); f0[t] = ps[t] > thr ? f0all[t] : 0; psn[t] = ps[t] * norm; }
-    f0.all = f0all; f0.ps = psn;
+    var f0 = new Float32Array(T);
+    for (t = 0; t < T; t++) f0[t] = ps[t] > thr ? fmin * Math.pow(2, path[t] * 20 / 1200) : 0;
     return f0;
-  }
-  // ---------- soft voicing features: novelty of the comb against a 1 s time median, and band energy ----------
-  // job: {V (uint16, frames va..vb), va, f0, f1, f0all (frames f0..f1), sr, N, H, p}
-  function novelty(job) {
-    var p = job.p, nb = job.N / 2 + 1, df = job.sr / job.N, dec = decodeTable(), va = job.va, nv = job.V.length / nb;
-    var mag = new Float32Array(nv * nb), tm = new Float32Array(nv * nb), k, t;
-    for (var i = 0; i < mag.length; i++) mag[i] = dec[job.V[i]];
-    var kT = odd(p.novT * job.sr / job.H);
-    for (k = 0; k < nb; k++) medianLine(mag, tm, nv, nb, k, kT);
-    var bshape = new Float64Array(nb); for (k = 0; k < nb; k++) bshape[k] = bandShape(k * df, p);
-    var F = job.f1 - job.f0, nov = new Float32Array(F), en = new Float32Array(F);
-    for (t = 0; t < F; t++) {
-      var r = job.f0 + t - va, f0 = job.f0all[t], num = 0, den = 0, e = 0;
-      for (k = 0; k < nb; k++) {
-        var m = mag[r * nb + k]; e += m * bshape[k];
-        var hh = k * df / f0, rr = Math.round(hh);
-        if (rr >= 1 && rr <= 40) { var wid = p.melW * rr + df / f0 * 0.6, dd = Math.abs(hh - rr) / wid, c = Math.exp(-0.5 * dd * dd); num += c * Math.max(m - tm[r * nb + k], 0); den += c * m; }
-      }
-      nov[t] = num / (den + 1e-20); en[t] = Math.log(e + 1e-12);
-    }
-    return { nov: nov, en: en };
   }
 
   // ---------- Stage B pass 2: masks and synthesis ----------
@@ -356,7 +331,6 @@ var DSP = (function () {
         else { masks[base] = mv; masks[F * nb + base] = mb; if (NS === 3) masks[2 * F * nb + base] = amb; }
       }
     }
-    if (p.vMode === 2) vocalModel2(job, masks, PL, PR, CRr, F, nb, df, bshape, lpS, NS);
     // temporal smoothing of masks (3 frames) - sum stays <= 1 because each is an average of fractions summing to 1
     if (p.smooth) {
       var tmp = new Float32Array(F * nb);
@@ -387,54 +361,6 @@ var DSP = (function () {
     }
     outs.push(rL, rR);
     return { start: o0, outs: outs };
-  }
-
-  // Vocal share v1.1: on the tracked pitch's harmonics all energy is candidate vocal; a time-median model of the
-  // accompaniment (what stays put for ~2 s) competes with it in a Wiener mask, iterated (kernel additive
-  // modelling backfitting, Liutkus et al. 2014; harmonic masks after Ikemiya et al. 2016). The stereo centre is
-  // only a mild weight, so reverb-widened vocals are kept. Recomputes the vocal and bass masks in place.
-  function vocalModel2(job, masks, PL, PR, CRr, F, nb, df, bshape, lpS, NS) {
-    var p = job.p, N = F * nb, t, k, i;
-    var mag = new Float32Array(N), prior = new Float32Array(N), Sa = new Float32Array(N), A = new Float32Array(N), amb = new Float32Array(N);
-    var a = p.v2A, kT = odd(p.v2Tmed * job.sr / job.H);
-    for (t = 0; t < F; t++) {
-      var f0 = job.f0V[t], vf = job.vsoft[t];
-      for (k = 0; k < nb; k++) {
-        i = t * nb + k;
-        var pl = PL[i], pr = PR[i], E = pl + pr + 1e-20, m = Math.sqrt(E);
-        var pan = (pr - pl) / E, ph = CRr[i] / Math.sqrt(pl * pr + 1e-30); if (ph < 0) ph = 0; else if (ph > 1) ph = 1;
-        var dp = (pan - p.vocalPan) / p.width, center = Math.exp(-0.5 * dp * dp) * Math.pow(ph, p.phaseK);
-        var cwp = (pan - p.vocalPan) / p.melWidth, cw = Math.exp(-0.5 * cwp * cwp) * ph;
-        var Mm = 0;
-        if (f0 > 0) { var hh = k * df / f0, rr = Math.round(hh); if (rr >= 1 && rr <= 40) { var wid = p.melW * rr + df / f0 * 0.6, dd = Math.abs(hh - rr) / wid; Mm = Math.exp(-0.5 * dd * dd); } }
-        mag[i] = m;
-        prior[i] = bshape[k] * (vf * Math.max(Mm, p.v2Floor) * ((1 - a) + a * cw) + (1 - vf) * p.v2Unv * center);
-        Sa[i] = m * (1 - vf * Mm);
-        if (NS === 3) amb[i] = masks[2 * N + i];
-      }
-    }
-    var q = p.v2Q, Mv = new Float32Array(N);
-    for (var it = 0; it < p.v2Iters; it++) {
-      for (k = 0; k < nb; k++) medianLine(Sa, A, F, nb, k, kT);
-      for (i = 0; i < N; i++) {
-        var vm = Math.pow(mag[i] * prior[i], q), am = Math.pow(A[i], q);
-        Mv[i] = vm / (vm + am + 1e-30);
-        Sa[i] = mag[i] * (1 - Mv[i]);
-      }
-    }
-    for (t = 0; t < F; t++) {
-      var f0b = job.f0B[t];
-      for (k = 0; k < nb; k++) {
-        i = t * nb + k;
-        var direct = 1 - amb[i], vs = Mv[i] > 1 ? 1 : Mv[i], lp = lpS[k];
-        if (f0b > 0 && k * df < p.bassTop) {
-          var hb = k * df / f0b, rb = Math.round(hb);
-          if (rb >= 1 && rb <= p.bassNh) { var wb = p.bassW * rb + df / f0b * 0.6, db = Math.abs(hb - rb) / wb, bm = p.bmel * Math.exp(-0.5 * db * db); if (bm > lp) lp = bm; }
-        }
-        masks[i] = direct * vs;
-        if (NS > 1) masks[N + i] = direct * (1 - vs) * lp;
-      }
-    }
   }
 
   // ---------- display spectrogram (log-frequency, uint8) ----------
@@ -633,7 +559,6 @@ var DSP = (function () {
       case 'A': return stageA(msg.job);
       case 'B1': return stageB1(msg.job);
       case 'B2': return stageB2(msg.job);
-      case 'NOV': return novelty(msg.job);
       case 'SPEC': return spectrogram(msg.job);
       case 'SPART': return spectralPart(msg.job);
       case 'LIMIT': {
@@ -677,7 +602,7 @@ var DSP = (function () {
 
   return {
     DEFAULTS: DEFAULTS, sizes: sizes, nFrames: nFrames, NCAND: NCAND,
-    stageA: stageA, stageB1: stageB1, novelty: novelty, stageB2: stageB2, estimatePeriod: estimatePeriod, viterbi: viterbi,
+    stageA: stageA, stageB1: stageB1, stageB2: stageB2, estimatePeriod: estimatePeriod, viterbi: viterbi,
     spectrogram: spectrogram, spectralPart: spectralPart, SPEC_ROWS: SPEC_ROWS,
     loudness: loudness, truePeak: truePeak, limit: limit, wav: wav, zip: zip, unzip: unzip, crc32: crc32,
     handle: handle, transferables: transferables, getFFT: getFFT, fft: fft, kWeightCoefs: kWeightCoefs

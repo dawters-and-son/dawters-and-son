@@ -83,35 +83,15 @@ var ENGINE = (function () {
     // ---- global analysis ----
     check();
     prog('Following the singer and the bass line', 0);
-    var perFound = D.estimatePeriod(bands, nbands, TB, sr, HB), per = p.vMode === 2 ? 0 : (p.rep > 0 ? perFound : 0);
+    var per = p.rep > 0 ? D.estimatePeriod(bands, nbands, TB, sr, HB) : 0;
     var f0V = p.mel > 0 ? D.viterbi(salV, TB, 1 / Math.pow(maxC + 1e-20, p.salPow), p.voicePct, 80) : new Float32Array(TB);
-    var vsoft = null, f0Comb = f0V;
-    if (p.vMode === 2) {
-      // soft voicing: path salience + band energy + how new the comb's energy is against a 1 s median
-      var f0all = f0V.all, nov = new Float32Array(TB), en = new Float32Array(TB), jobsN = [], MN = Math.ceil(p.novT * sr / HB / 2) + 1;
-      for (f0 = 0; f0 < TB; f0 += 512) jobsN.push({ f0: f0, f1: Math.min(TB, f0 + 512) });
-      await runAll(pool, jobsN.map(function (j) {
-        return function () {
-          check();
-          var va = Math.max(0, j.f0 - MN), vb = Math.min(TB, j.f1 + MN);
-          return pool.run('NOV', { V: V.slice(va * nb, vb * nb), va: va, f0: j.f0, f1: j.f1, f0all: f0all.slice(j.f0, j.f1), sr: sr, N: NB, H: HB, p: p }).then(function (r) { nov.set(r.nov, j.f0); en.set(r.en, j.f0); });
-        };
-      }));
-      var zs = function (x) { var a = Array.from(x).sort(function (u, v) { return u - v; }), med = a[a.length >> 1], m = 0, sd = 0, i; for (i = 0; i < x.length; i++) m += x[i]; m /= x.length; for (i = 0; i < x.length; i++) sd += (x[i] - m) * (x[i] - m); sd = Math.sqrt(sd / x.length) + 1e-9; return function (i2) { return (x[i2] - med) / sd; }; };
-      var lps = new Float32Array(TB); for (var ii = 0; ii < TB; ii++) lps[ii] = Math.log(f0V.ps[ii] + 1e-9);
-      var zA = zs(lps), zB = zs(en), zC = zs(nov), raw = new Float32Array(TB);
-      for (ii = 0; ii < TB; ii++) { var z = zA(ii) + zB(ii) + p.novW * zC(ii); raw[ii] = 1 / (1 + Math.exp(-(z - p.softThr) / p.softS)); }
-      vsoft = new Float32Array(TB);
-      for (ii = 0; ii < TB; ii++) { var a0 = raw[Math.max(0, ii - 1)], a2 = raw[Math.min(TB - 1, ii + 1)]; vsoft[ii] = (a0 + raw[ii] + a2) / 3; }
-      f0Comb = f0all;
-    }
     await tick();
     var f0B = p.bmel > 0 && p.stems !== 2 ? D.viterbi(salB, TB, 1 / Math.pow(maxB + 1e-20, p.salPow), p.bassVoicePct, 30) : new Float32Array(TB);
     salV = salB = null;
     prog('Following the singer and the bass line', 1);
 
     // ---- Stage B pass 2: masks + synthesis ----
-    var CB2 = p.vMode === 2 ? 288 : 160, MB = p.vMode === 2 ? Math.ceil(p.v2Tmed * sr / HB / 2) * p.v2Iters + 6 : 4, jobsB2 = [], doneB2 = 0, K = p.repK;
+    var CB2 = 160, MB = 4, jobsB2 = [], doneB2 = 0, K = p.repK;
     for (f0 = 0; f0 < TB; f0 += CB2) {
       var e = Math.min(TB, f0 + CB2);
       jobsB2.push({ f0: f0, f1: e, fa: Math.max(0, f0 - MB), fb: Math.min(TB, e + MB) });
@@ -125,8 +105,7 @@ var ENGINE = (function () {
         var va = per > 0 ? Math.max(0, j.fa - K * per) : j.fa, vb = per > 0 ? Math.min(TB, j.fb + K * per) : j.fa;
         var Vs = per > 0 ? V.slice(va * nb, vb * nb) : null;
         var job = { L: rs[0], R: rs[1], segStart: s0, sr: sr, f0: j.f0, f1: j.f1, fa: j.fa, fb: j.fb, p: p, N: NB, H: HB,
-          V: Vs, va: va, per: per, f0V: f0Comb.slice(j.fa, j.fb), f0B: f0B.slice(j.fa, j.fb), T: TB,
-          vsoft: vsoft ? vsoft.slice(j.fa, j.fb) : null };
+          V: Vs, va: va, per: per, f0V: f0V.slice(j.fa, j.fb), f0B: f0B.slice(j.fa, j.fb), T: TB };
         return pool.run('B2', job).then(function (res) {
           for (var s = 0; s < targets.length; s++) { addInto(targets[s][0], res.outs[2 * s], res.start); addInto(targets[s][1], res.outs[2 * s + 1], res.start); }
           var r = res.outs.length - 2; addInto(restT[0], res.outs[r], res.start); addInto(restT[1], res.outs[r + 1], res.start);
@@ -138,8 +117,8 @@ var ENGINE = (function () {
     timing.total = Date.now() - t0;
 
     // voicing summary for the report
-    var voiced = 0; for (i = 0; i < TB; i++) if (vsoft ? vsoft[i] > 0.5 : f0V[i] > 0) voiced++;
-    return { stems: out, names: names, period: perFound ? perFound * HB / sr : 0, timing: timing, voicedFrac: voiced / TB, f0V: f0V, frameHop: HB / sr };
+    var voiced = 0; for (i = 0; i < TB; i++) if (f0V[i] > 0) voiced++;
+    return { stems: out, names: names, period: per ? per * HB / sr : 0, timing: timing, voicedFrac: voiced / TB, f0V: f0V, frameHop: HB / sr };
   }
   function tick() { return new Promise(function (r) { setTimeout(r, 0); }); }
 
